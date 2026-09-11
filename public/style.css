@@ -130,11 +130,12 @@ header h1 {
   gap: 8px;
 }
 
-.logo-wordmark {
-  height: 42px;
-  width: auto;
-  border-radius: 6px;
-  display: block;
+.logo-icon {
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .badge {
@@ -466,8 +467,6 @@ header h1 {
   body { padding: 12px; }
 
   header h1 { font-size: 1.3rem; }
-
-  .logo-wordmark { height: 34px; }
 
   #searchForm { padding: 12px; }
 
