@@ -8,16 +8,38 @@ let filterTags = []; // /api/meta 응답 캐시 (그룹 라벨, 매칭용 텍스
 let selectedSiteType = '';
 const selectedFilters = new Set();
 
-function todayStr(offsetDays = 1) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
+function fmtYmd(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-document.getElementById('checkin').value = todayStr(1);
-document.getElementById('checkout').value = todayStr(2);
+
+function addDays(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d;
+}
+
+const checkinInput = document.getElementById('checkin');
+const checkoutInput = document.getElementById('checkout');
+const defaultDateRange = [addDays(1), addDays(2)];
+
+const datePicker = flatpickr('#dateRange', {
+  mode: 'range',
+  locale: 'ko',
+  minDate: 'today',
+  dateFormat: 'Y-m-d',
+  defaultDate: defaultDateRange,
+  showMonths: window.innerWidth < 480 ? 1 : 2,
+  onChange(selectedDates) {
+    if (selectedDates.length !== 2) return;
+    checkinInput.value = fmtYmd(selectedDates[0]);
+    checkoutInput.value = fmtYmd(selectedDates[1]);
+  },
+});
+checkinInput.value = fmtYmd(defaultDateRange[0]);
+checkoutInput.value = fmtYmd(defaultDateRange[1]);
 
 function won(n) {
   return n == null ? '가격 정보 없음' : `${n.toLocaleString('ko-KR')}원~`;
@@ -101,8 +123,7 @@ function renderFilterGroups(tags) {
 
 function resetFilters() {
   form.reset();
-  document.getElementById('checkin').value = todayStr(1);
-  document.getElementById('checkout').value = todayStr(2);
+  datePicker.setDate(defaultDateRange, true); // true = onChange 트리거 -> hidden input도 같이 갱신
   selectedSiteType = '';
   selectedFilters.clear();
   siteTypeInput.value = '';

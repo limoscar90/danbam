@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>DANBAM</title>
+<link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -39,12 +40,10 @@
         <input id="sigungu" name="sigungu" placeholder="전체" />
       </div>
       <div class="field">
-        <label for="checkin">체크인</label>
-        <input id="checkin" name="checkin" type="date" required />
-      </div>
-      <div class="field">
-        <label for="checkout">체크아웃</label>
-        <input id="checkout" name="checkout" type="date" required />
+        <label for="dateRange">체크인 - 체크아웃</label>
+        <input id="dateRange" placeholder="날짜 선택" readonly />
+        <input type="hidden" id="checkin" name="checkin" />
+        <input type="hidden" id="checkout" name="checkout" />
       </div>
       <div class="field">
         <label for="adults">인원</label>
@@ -71,6 +70,8 @@
   <div id="status"></div>
   <div id="results"></div>
 
+  <script src="vendor/flatpickr/flatpickr.min.js"></script>
+  <script src="vendor/flatpickr/l10n/ko.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

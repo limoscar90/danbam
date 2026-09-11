@@ -11,6 +11,40 @@
 
 * { box-sizing: border-box; }
 
+#dateRange { cursor: pointer; background: #fff; }
+
+/* flatpickr 캘린더를 DANBAM 초록 테마에 맞춘다 */
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange,
+.flatpickr-day.startRange.inRange,
+.flatpickr-day.endRange.inRange,
+.flatpickr-day.selected:focus,
+.flatpickr-day.startRange:focus,
+.flatpickr-day.endRange:focus,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.flatpickr-day.inRange {
+  background: #e6f0ea;
+  border-color: #e6f0ea;
+  box-shadow: -5px 0 0 #e6f0ea, 5px 0 0 #e6f0ea;
+}
+
+.flatpickr-day.today {
+  border-color: var(--accent);
+}
+
+span.flatpickr-weekday,
+.flatpickr-current-month {
+  color: var(--ink);
+}
+
 body {
   margin: 0;
   background: var(--bg);

@@ -13,6 +13,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "express-session": "^1.19.0",
+    "flatpickr": "^4.6.13",
     "pg": "^8.23.0",
     "playwright": "1.63.0"
   }
