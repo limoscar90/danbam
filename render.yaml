@@ -19,3 +19,7 @@ services:
         value: true
       - key: DATABASE_URL
         sync: false # Supabase 연결 문자열은 비밀값이라 Render 대시보드에서 직접 입력해야 한다.
+      - key: NCP_MAPS_CLIENT_ID
+        sync: false # 네이버클라우드플랫폼 Maps Application의 Client ID/Secret도 마찬가지.
+      - key: NCP_MAPS_CLIENT_SECRET
+        sync: false
