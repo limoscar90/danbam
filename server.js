@@ -1,3 +1,4 @@
+require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
@@ -25,8 +26,11 @@ const THANKQ_SITE_TYPE = { '': '전체', BB000: '오토캠핑', BB001: '글램�
 
 // 플랫폼마다 편의시설 표기가 달라("해수욕장"/"바다", "수상레져"/"수상레저") 라벨 부분일치로 묶는
 // 공통 필터 태그. group은 프런트에서 칩을 묶어 보여줄 때 쓴다.
+// 캠핏에만 있는 정보(노키즈, 사이트 환경)라 땡큐캠핑에는 항상 없음 -> unsupportedPlatforms로 표시해서
+// matchesFilters()가 그 플랫폼 아이템은 통과시키고, /api/search가 notices에 안내를 붙인다.
 const FILTER_TAGS = [
   { key: 'pet', group: '예약 옵션', label: '반려동물 동반', match: ['반려'] },
+  { key: 'noKids', group: '예약 옵션', label: '노키즈', match: ['노키즈'], unsupportedPlatforms: ['땡큐캠핑'] },
   { key: 'individualToilet', group: '시설', label: '개별화장실', match: ['개별화장실'] },
   { key: 'individualShower', group: '시설', label: '개별샤워실', match: ['개별샤워실'] },
   { key: 'pool', group: '시설', label: '수영장', match: ['수영장'] },
@@ -37,8 +41,22 @@ const FILTER_TAGS = [
   { key: 'fishing', group: '주변·레저', label: '낚시', match: ['낚시'] },
   { key: 'forestLodge', group: '주변·레저', label: '휴양림', match: ['휴양림'] },
   { key: 'ocean', group: '주변·레저', label: '바다', match: ['바다', '해수욕장'] },
+  { key: 'floorGrass', group: '사이트 환경', label: '잔디', match: ['잔디'], unsupportedPlatforms: ['땡큐캠핑'] },
+  { key: 'floorDeck', group: '사이트 환경', label: '데크', match: ['데크'], unsupportedPlatforms: ['땡큐캠핑'] },
+  { key: 'floorCrushedStone', group: '사이트 환경', label: '파쇄석', match: ['파쇄석'], unsupportedPlatforms: ['땡큐캠핑'] },
+  { key: 'floorSoilCement', group: '사이트 환경', label: '마사토', match: ['마사토'], unsupportedPlatforms: ['땡큐캠핑'] },
+  { key: 'floorSand', group: '사이트 환경', label: '모래', match: ['모래'], unsupportedPlatforms: ['땡큐캠핑'] },
+  { key: 'floorPebble', group: '사이트 환경', label: '자갈', match: ['자갈'], unsupportedPlatforms: ['땡큐캠핑'] },
+  { key: 'floorMixed', group: '사이트 환경', label: '혼합', match: ['혼합'], unsupportedPlatforms: ['땡큐캠핑'] },
+  { key: 'floorEtc', group: '사이트 환경', label: '기타(바닥재)', match: ['기타(바닥재)'], unsupportedPlatforms: ['땡큐캠핑'] },
 ];
 const FILTER_TAG_BY_KEY = Object.fromEntries(FILTER_TAGS.map((t) => [t.key, t]));
+
+// 캠핏 존(zone) floorType 코드 -> 한글 라벨 (캠핏 검색 필터 UI에서 실측: 파쇄석/데크/잔디/마사토/모래/자갈/혼합/기타)
+const CAMFIT_FLOOR_TYPE_LABELS = {
+  crushedStone: '파쇄석', deck: '데크', grass: '잔디', soilCement: '마사토',
+  sand: '모래', pebble: '자갈', mixed: '혼합', etc: '기타(바닥재)',
+};
 
 // --- 캠핏 편의시설/레저/타입 코드 -> 라벨 매핑 (캠핏 정적 JS 번들에서 확보) ---
 const CAMFIT_LABEL_MAP = {
@@ -140,7 +158,7 @@ async function getCamfitPage() {
   return camfitPagePromise;
 }
 
-async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter }) {
+async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter, filterKeys = [] }) {
   const page = await getCamfitPage();
   const params = {
     adult: String(adults || 2),
@@ -191,6 +209,58 @@ async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter }) {
     return Object.fromEntries(entries);
   }, ids);
 
+  // 사이트 환경(바닥재)은 캠프가 아니라 존(zone) 단위 정보라 /v1/zones/{id}를 따로 불러야 한다
+  // (검색/상세 API 응답엔 없음, 실측 확인됨). 존이 여러 개면 하나라도 해당 바닥재면 그 캠프도 매칭되게
+  // OR으로 합친다. 매 검색마다 캠프당 존 여러 개를 병렬로 더 불러오는 비용이 있어, 사이트 환경 필터가
+  // 실제로 선택된 경우에만 수행한다.
+  const wantsFloorType = filterKeys.some((k) => FILTER_TAG_BY_KEY[k] && FILTER_TAG_BY_KEY[k].group === '사이트 환경');
+  let floorLabelsByCamp = {};
+  if (wantsFloorType) {
+    const zoneIdsByCamp = Object.fromEntries(list.map((c) => [c._id, (c.zones || []).map((z) => z._id)]));
+    const allZoneIds = [...new Set(Object.values(zoneIdsByCamp).flat())];
+    const floorTypeByZone = await page.evaluate(async (zoneIds) => {
+      const entries = await Promise.all(
+        zoneIds.map(async (id) => {
+          try {
+            const r = await fetch(`https://api.camfit.co.kr/v1/zones/${id}`);
+            if (!r.ok) return [id, null];
+            const d = await r.json();
+            return [id, d.floorType || null];
+          } catch (e) {
+            return [id, null];
+          }
+        })
+      );
+      return Object.fromEntries(entries);
+    }, allZoneIds);
+    floorLabelsByCamp = Object.fromEntries(
+      Object.entries(zoneIdsByCamp).map(([campId, zoneIds]) => [
+        campId,
+        [...new Set(zoneIds.map((zid) => floorTypeByZone[zid]).filter(Boolean).map((code) => CAMFIT_FLOOR_TYPE_LABELS[code] || code))],
+      ])
+    );
+  }
+
+  // 노키즈는 캠프/존 상세 응답 어디에도 공개된 필드가 없어(agePolicy는 노키즈 캠핑장에서도 항상
+  // enabled:false로 확인됨) 캠핏 검색 자체가 지원하는 reservationOptions=noKids 파라미터로
+  // 별도 조회해 매칭되는 캠프 id 집합을 구한다. 노키즈 필터가 선택된 경우에만 수행한다.
+  let noKidsIds = new Set();
+  if (filterKeys.includes('noKids')) {
+    const noKidsQs = new URLSearchParams({ ...params, reservationOptions: 'noKids', limit: '200' });
+    const noKidsUrl = `https://api.camfit.co.kr/v3/search?${noKidsQs.toString()}`;
+    const noKidsCampIds = await page.evaluate(async (u) => {
+      try {
+        const r = await fetch(u);
+        if (!r.ok) return [];
+        const j = await r.json();
+        return (j.data || []).map((c) => c._id);
+      } catch (e) {
+        return [];
+      }
+    }, noKidsUrl);
+    noKidsIds = new Set(noKidsCampIds);
+  }
+
   return list.map((c) => {
     const zones = c.zones || [];
     const availableZones = zones.filter((z) => z.isAvailable).length;
@@ -198,6 +268,9 @@ async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter }) {
     const codes = detail
       ? [...detail.facilities, ...detail.additionalFacilities, ...detail.services, ...detail.activities]
       : [];
+    const amenities = new Set(codes.map(camfitLabel));
+    (floorLabelsByCamp[c._id] || []).forEach((label) => amenities.add(label));
+    if (noKidsIds.has(c._id)) amenities.add('노키즈');
     return {
       platform: '캠핏',
       name: c.name,
@@ -205,7 +278,7 @@ async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter }) {
       price: c.priceStartFrom ?? null,
       totalSites: zones.length || null,
       availableSites: zones.length ? availableZones : null,
-      amenities: [...new Set(codes.map(camfitLabel))],
+      amenities: [...amenities],
       reviewCount: c.numOfReviews ?? null,
       thumbnail: c.medias && c.medias[0] ? c.medias[0] : null,
       link: `https://camfit.co.kr/camp/${c._id}`,
@@ -247,6 +320,7 @@ function matchesFilters(item, filterKeys) {
   return filterKeys.every((key) => {
     const tag = FILTER_TAG_BY_KEY[key];
     if (!tag) return true;
+    if (tag.unsupportedPlatforms && tag.unsupportedPlatforms.includes(item.platform)) return true;
     return amenities.some((a) => tag.match.some((m) => a.includes(m)));
   });
 }
@@ -351,7 +425,7 @@ app.post('/api/signup', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const email = userStore.normalizeEmail(req.body.email);
   const password = String(req.body.password || '');
-  const user = userStore.findByEmail(email);
+  const user = await userStore.findByEmail(email);
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' });
   }
@@ -386,7 +460,7 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
 
   const [thankqResult, camfitResult, naverResult] = await Promise.allSettled([
     searchThankQ({ sido, sigungu, checkin, checkout, adults: Number(adults) || 2, siteType }),
-    searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter }),
+    searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter, filterKeys }),
     searchNaver({ sido, sigungu, keyword }),
   ]);
 
@@ -414,6 +488,13 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
     if (items.some((i) => i.platform === '네이버')) {
       notices.push('네이버 결과는 필터로 사용한 정보(반려동물, 편의시설 등)를 제공하지 않아 필터와 무관하게 모두 표시됩니다.');
     }
+    const unsupportedByThankQ = filterKeys
+      .map((k) => FILTER_TAG_BY_KEY[k])
+      .filter((tag) => tag && tag.unsupportedPlatforms && tag.unsupportedPlatforms.includes('땡큐캠핑'));
+    if (unsupportedByThankQ.length && items.some((i) => i.platform === '땡큐캠핑')) {
+      const labels = unsupportedByThankQ.map((tag) => tag.label).join(', ');
+      notices.push(`땡큐캠핑은 ${labels} 정보를 제공하지 않아 해당 필터와 무관하게 모두 표시됩니다.`);
+    }
   }
 
   items.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
@@ -421,8 +502,19 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
   res.json({ checkin, checkout, count: items.length, items, errors, notices });
 });
 
-app.listen(PORT, () => {
-  console.log(`DANBAM: http://localhost:${PORT}`);
+async function start() {
+  if (AUTH_ENABLED) {
+    const { ensureSchema } = require('./lib/db');
+    await ensureSchema();
+  }
+  app.listen(PORT, () => {
+    console.log(`DANBAM: http://localhost:${PORT}${AUTH_ENABLED ? ' (로그인 필요)' : ' (로그인 비활성화)'}`);
+  });
+}
+
+start().catch((err) => {
+  console.error('서버 시작 실패:', err.message);
+  process.exit(1);
 });
 
 process.on('SIGINT', async () => {

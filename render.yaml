@@ -1,14 +1,15 @@
 # Render Blueprint: https://dashboard.render.com/blueprints 에서 "New Blueprint Instance"로
 # 이 저장소를 연결하면 아래 설정대로 서비스가 만들어진다.
 #
-# 주의: 회원 정보(data/users.json)를 담을 디스크는 Starter 이상 유료 플랜에서만 붙일 수 있다.
-# Free 플랜으로 시작하면 disk 섹션이 무시되고, 재배포/재시작마다 가입자 목록이 초기화된다
-# (테스트 단계에선 괜찮지만, 실제로 다른 사람이 계속 쓰게 하려면 Starter로 올리는 걸 권장).
+# 회원 데이터는 Supabase(Postgres)에 저장되므로 Render 쪽에 디스크가 필요 없다 — Free 플랜으로
+# 시작해도 재배포/재시작에 데이터가 사라지지 않는다. 다만 Free 플랜은 15분 정도 요청이 없으면
+# 서비스가 잠들고, 다음 요청에서 깨어나는 데 수십 초가 걸린다(Playwright 브라우저까지 띄워야 해서
+# 첫 요청은 특히 느릴 수 있음) — 계속 빠르게 응답해야 하면 Starter로 올리는 걸 권장.
 services:
   - type: web
     name: danbamcamp
     runtime: docker
-    plan: starter
+    plan: free
     envVars:
       - key: SESSION_SECRET
         generateValue: true
@@ -16,7 +17,5 @@ services:
         value: production
       - key: ENABLE_AUTH
         value: true
-    disk:
-      name: danbam-data
-      mountPath: /app/data
-      sizeGB: 1
+      - key: DATABASE_URL
+        sync: false # Supabase 연결 문자열은 비밀값이라 Render 대시보드에서 직접 입력해야 한다.
