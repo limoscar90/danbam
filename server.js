@@ -433,8 +433,11 @@ async function searchNaver(args) {
 }
 
 async function searchNaverAttempt({ sido, sigungu, keyword }) {
+  // 지역/검색어가 전부 비어있어도("전체" 검색) '캠핑장'만으로 검색한다 - 네이버 지도는 위치 필터가
+  // 없으면 자체 기본 정렬(인지도/리뷰 기준 상위 결과, 수도권에 몰리는 경향)로 상위 일부만 보여주지만,
+  // 그래도 결과를 아예 안 보여주는 것보다는 낫다. 실측 확인: 지역 없이 '캠핑장'만 검색해도 정상적으로
+  // 20건이 반환됨(전국 스캔은 아니고 네이버 자체 기본 노출 순서).
   const queryParts = [sido, sigungu, keyword, '캠핑장'].filter(Boolean);
-  if (!sido && !sigungu && !keyword) return []; // 검색어가 전혀 없으면 지도 중심 위치 기준으로만 나와 의미가 없다.
   const page = await getNaverPage();
   const query = queryParts.join(' ');
   const searchUrl = `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
@@ -613,11 +616,11 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
   if (naverResult.status === 'fulfilled') items.push(...naverResult.value);
   else errors.push({ platform: '네이버', message: String(naverResult.reason) });
 
-  // 네이버 지도는 캠핏/땡큐캠핑과 달리 진짜 전국검색이 없어서, 지역/검색어가 전부 비어있으면
-  // (searchNaver 안에서) 조용히 빈 배열을 반환한다 - 그냥 0건이라고만 나오면 왜 그런지 알 수 없어
-  // 이유를 명시적으로 알려준다.
+  // 네이버 지도는 캠핏/땡큐캠핑과 달리 진짜 전국검색(위치 필터)이 없어서, 지역/검색어가 전부
+  // 비어있으면 네이버 자체 기본 노출 순서로 상위 일부만 보여준다 - 왜 개수가 적은지 알 수 있게
+  // 안내를 붙인다.
   if (wantsPlatform('네이버') && !sido && !sigungu && !keyword) {
-    notices.push('네이버 지도는 지역(시/도, 시/군/구)이나 숙소명 검색어가 있어야 결과를 보여줄 수 있어요 (전체 검색은 지원하지 않음).');
+    notices.push('네이버는 지역/검색어를 지정하지 않으면 네이버 자체 기본 노출 순서로 일부 결과만 보여드려요. 더 폭넓게 보려면 지역을 선택해보세요.');
   }
 
   // 캠핏/땡큐캠핑 모두 검색어 파라미터를 실제로는 걸러주지 않아(확인됨), 이름 검색은
