@@ -422,6 +422,32 @@ async function geocodeAddress(address) {
   }
 }
 
+// "내 위치에서 검색"용 - 좌표를 시/도(축약형, 예: "경기")·시/군/구로 바꿔서 기존 검색 파이프라인
+// (searchThankQ/searchCamfit/searchNaver가 기대하는 지역 형식)을 그대로 태우게 한다.
+async function reverseGeocode(lat, lng) {
+  const clientId = process.env.NCP_MAPS_CLIENT_ID;
+  const clientSecret = process.env.NCP_MAPS_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  try {
+    const url = `https://maps.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${lng},${lat}&output=json&orders=admcode`;
+    const res = await fetch(url, {
+      headers: {
+        'x-ncp-apigw-api-key-id': clientId,
+        'x-ncp-apigw-api-key': clientSecret,
+      },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const region = json.results && json.results[0] && json.results[0].region;
+    if (!region) return null;
+    const sido = region.area1.alias || region.area1.name; // alias가 "경기" 같은 축약형, name은 "경기도"
+    const sigungu = region.area2.name;
+    return sido && sigungu ? { sido, sigungu } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function searchNaver(args) {
   try {
     return await searchNaverAttempt(args);
@@ -570,6 +596,17 @@ app.get('/api/meta', requireApiAuth, (req, res) => {
     // Client ID는 지도 SDK 로드용으로 브라우저에 그대로 노출돼도 되는 값이다(Secret은 서버에만 둔다).
     naverMapsClientId: process.env.NCP_MAPS_CLIENT_ID || null,
   });
+});
+
+app.get('/api/reverse-geocode', requireApiAuth, async (req, res) => {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: '좌표가 올바르지 않습니다.' });
+  }
+  const region = await reverseGeocode(lat, lng);
+  if (!region) return res.status(404).json({ error: '현재 위치의 지역을 찾지 못했어요.' });
+  res.json(region);
 });
 
 app.get('/api/search', requireApiAuth, async (req, res) => {
