@@ -167,7 +167,19 @@ async function getCamfitPage() {
   return camfitPagePromise;
 }
 
-async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter, filterKeys = [] }) {
+// 캐싱해둔 페이지가 한 번 쓰이고 나면 Cloudflare 재검증 등으로 이후 fetch가 조용히 막히는 경우가
+// 있어("Failed to fetch"), 실패 시 캐시를 버리고 새 페이지로 한 번 재시도한다.
+async function searchCamfit(args) {
+  try {
+    return await searchCamfitAttempt(args);
+  } catch (err) {
+    console.error('캠핏 검색 실패, 새 페이지로 재시도:', err.message);
+    camfitPagePromise = null;
+    return await searchCamfitAttempt(args);
+  }
+}
+
+async function searchCamfitAttempt({ sido, sigungu, adults, hasNameOrFilter, filterKeys = [] }) {
   const page = await getCamfitPage();
   const params = {
     adult: String(adults || 2),
@@ -363,7 +375,17 @@ async function geocodeAddress(address) {
   }
 }
 
-async function searchNaver({ sido, sigungu, keyword }) {
+async function searchNaver(args) {
+  try {
+    return await searchNaverAttempt(args);
+  } catch (err) {
+    console.error('네이버 검색 실패, 새 페이지로 재시도:', err.message);
+    naverPagePromise = null;
+    return await searchNaverAttempt(args);
+  }
+}
+
+async function searchNaverAttempt({ sido, sigungu, keyword }) {
   const queryParts = [sido, sigungu, keyword, '캠핑장'].filter(Boolean);
   if (!sido && !sigungu && !keyword) return []; // 검색어가 전혀 없으면 지도 중심 위치 기준으로만 나와 의미가 없다.
   const page = await getNaverPage();
