@@ -584,10 +584,21 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
   const checkin = fmtDate(checkinD);
   const checkout = fmtDate(checkoutD);
 
+  // 플랫폼 필터가 비어있으면(기본값) 전체 검색 - 특정 플랫폼만 고르면 나머지는 아예 요청하지 않아서
+  // (느린 캠핏/네이버를 뺄 수 있으면) 더 빨라지기도 한다.
+  const platformFilter = (req.query.platforms || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const wantsPlatform = (name) => platformFilter.length === 0 || platformFilter.includes(name);
+
   const [thankqResult, camfitResult, naverResult] = await Promise.allSettled([
-    searchThankQ({ sido, sigungu, checkin, checkout, adults: Number(adults) || 2, siteType }),
-    searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter, filterKeys }),
-    searchNaver({ sido, sigungu, keyword }),
+    wantsPlatform('땡큐캠핑')
+      ? searchThankQ({ sido, sigungu, checkin, checkout, adults: Number(adults) || 2, siteType })
+      : Promise.resolve([]),
+    wantsPlatform('캠핏')
+      ? searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter, filterKeys })
+      : Promise.resolve([]),
+    wantsPlatform('네이버')
+      ? searchNaver({ sido, sigungu, keyword })
+      : Promise.resolve([]),
   ]);
 
   const errors = [];

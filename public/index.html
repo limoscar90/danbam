@@ -53,6 +53,16 @@
     </div>
 
     <div class="filter-section">
+      <div class="filter-section-title">검색 플랫폼</div>
+      <div class="chip-row" id="platformChips">
+        <button type="button" class="chip active" data-platform="">전체</button>
+        <button type="button" class="chip" data-platform="캠핏">캠핏</button>
+        <button type="button" class="chip" data-platform="땡큐캠핑">땡큐캠핑</button>
+        <button type="button" class="chip" data-platform="네이버">네이버</button>
+      </div>
+    </div>
+
+    <div class="filter-section">
       <div class="filter-section-title">숙소유형</div>
       <div class="chip-row" id="siteTypeChips"></div>
     </div>
@@ -62,6 +72,7 @@
     <input type="hidden" id="siteTypeInput" name="siteType" value="" />
     <input type="hidden" id="filtersInput" name="filters" value="" />
     <input type="hidden" id="onlyAvailableInput" name="onlyAvailable" value="" />
+    <input type="hidden" id="platformsInput" name="platforms" value="" />
 
     <div class="form-actions">
       <button type="button" id="resetBtn" class="btn-secondary">초기화</button>

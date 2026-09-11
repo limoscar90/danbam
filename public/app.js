@@ -10,10 +10,12 @@ const mapViewBtn = document.getElementById('mapViewBtn');
 const siteTypeInput = document.getElementById('siteTypeInput');
 const filtersInput = document.getElementById('filtersInput');
 const onlyAvailableInput = document.getElementById('onlyAvailableInput');
+const platformsInput = document.getElementById('platformsInput');
 
 let filterTags = []; // /api/meta 응답 캐시 (그룹 라벨, 매칭용 텍스트 등)
 let selectedSiteType = '';
 const selectedFilters = new Set();
+const selectedPlatforms = new Set();
 let onlyAvailable = false;
 let mapMode = false;
 let naverMapsClientId = null;
@@ -163,16 +165,37 @@ function renderFilterGroups(tags) {
   }
 }
 
+// "전체"(기본)는 세 플랫폼 다 검색, 특정 플랫폼을 고르면 그것만 검색한다(느린 플랫폼을 빼면 더 빨라짐).
+// "전체"를 누르면 개별 선택을 지우고, 개별 플랫폼을 하나라도 고르면 "전체"는 자동으로 꺼진다.
+document.querySelectorAll('#platformChips .chip').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const platform = btn.dataset.platform;
+    if (!platform) {
+      selectedPlatforms.clear();
+    } else {
+      if (selectedPlatforms.has(platform)) selectedPlatforms.delete(platform);
+      else selectedPlatforms.add(platform);
+    }
+    platformsInput.value = [...selectedPlatforms].join(',');
+    document.querySelectorAll('#platformChips .chip').forEach((b) => {
+      b.classList.toggle('active', b.dataset.platform ? selectedPlatforms.has(b.dataset.platform) : selectedPlatforms.size === 0);
+    });
+  });
+});
+
 function resetFilters() {
   form.reset();
   datePicker.setDate(defaultDateRange, true); // true = onChange 트리거 -> hidden input도 같이 갱신
   selectedSiteType = '';
   selectedFilters.clear();
+  selectedPlatforms.clear();
   onlyAvailable = false;
   siteTypeInput.value = '';
   filtersInput.value = '';
   onlyAvailableInput.value = '';
+  platformsInput.value = '';
   document.querySelectorAll('#siteTypeChips .chip').forEach((b, i) => b.classList.toggle('active', i === 0 && b.dataset.value === ''));
+  document.querySelectorAll('#platformChips .chip').forEach((b) => b.classList.toggle('active', !b.dataset.platform));
   document.querySelectorAll('#filterGroups .chip').forEach((b) => b.classList.remove('active'));
 }
 
