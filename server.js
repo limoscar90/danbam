@@ -6,6 +6,8 @@ const bcrypt = require('bcryptjs');
 const { chromium } = require('playwright');
 const userStore = require('./lib/userStore');
 
+const AUTH_ENABLED = process.env.ENABLE_AUTH === 'true';
+
 const PORT = process.env.PORT || 5173;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'danbam-dev-secret-change-me';
 
@@ -468,9 +470,14 @@ async function searchNaverAttempt({ sido, sigungu, keyword }) {
 }
 
 const app = express();
-app.set('trust proxy', 1); // Render 등 리버스 프록시 뒤에서 secure 쿠키가 제대로 동작하도록
+app.set('trust proxy', 1); // Render/Fly 같은 리버스 프록시 뒤에서 secure 쿠키가 제대로 동작하도록
 app.use(express.json());
-app.use(session({
+
+// 세션을 메모리에만 두면 Fly가 유휴 상태에서 머신을 재웠다 깨울 때(또는 재배포/크래시 시)
+// 로그인이 전부 풀린다 - Supabase Postgres에 세션을 저장해서 서버가 몇 번을 다시 뜨든
+// 로그인이 유지되게 한다. 인증 자체가 꺼져있으면(로컬 미리보기) DB가 없어도 되게 기본
+// MemoryStore를 그대로 쓴다.
+const sessionOptions = {
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -479,11 +486,13 @@ app.use(session({
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
   },
-}));
-
-// 로컬에서 로그인 없이 바로 켜볼 수 있도록 기본은 OFF. 배포 환경(render.yaml)에서는
-// ENABLE_AUTH=true로 설정해 실제 서비스에는 로그인이 걸리게 한다.
-const AUTH_ENABLED = process.env.ENABLE_AUTH === 'true';
+};
+if (AUTH_ENABLED) {
+  const pgSession = require('connect-pg-simple')(session);
+  const { getPool } = require('./lib/db');
+  sessionOptions.store = new pgSession({ pool: getPool(), tableName: 'session', createTableIfMissing: true });
+}
+app.use(session(sessionOptions));
 
 function requirePageAuth(req, res, next) {
   if (!AUTH_ENABLED) return next();
