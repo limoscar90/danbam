@@ -386,7 +386,7 @@ form.addEventListener('submit', async (e) => {
   const params = new URLSearchParams(new FormData(form));
   if (mapMode) params.set('map', 'true');
   statusEl.className = '';
-  statusEl.textContent = '검색 중... (캠핏은 브라우저를 여는 방식이라 몇 초 더 걸릴 수 있어요)';
+  statusEl.textContent = '검색 중... (캠핏·네이버는 브라우저를 여는 방식이라 느릴 때는 최대 1분까지 걸릴 수 있어요)';
   resultsEl.innerHTML = '';
 
   try {
