@@ -17,9 +17,12 @@
   </header>
 
   <form id="searchForm">
-    <div class="field field-wide">
-      <label for="keyword">숙소명 검색</label>
-      <input id="keyword" name="keyword" placeholder="예: 자라섬 (비워두면 전체)" />
+    <div class="field field-wide field-search-row">
+      <div class="search-input-wrap">
+        <label for="keyword">숙소명 검색</label>
+        <input id="keyword" name="keyword" placeholder="예: 자라섬 (비워두면 전체)" />
+      </div>
+      <button type="button" id="mapToggleBtn" class="map-toggle-btn" title="지도로 보기">🗺️</button>
     </div>
 
     <div class="row">
@@ -60,6 +63,7 @@
 
     <input type="hidden" id="siteTypeInput" name="siteType" value="" />
     <input type="hidden" id="filtersInput" name="filters" value="" />
+    <input type="hidden" id="onlyAvailableInput" name="onlyAvailable" value="" />
 
     <div class="form-actions">
       <button type="button" id="resetBtn" class="btn-secondary">초기화</button>
@@ -68,6 +72,7 @@
   </form>
 
   <div id="status"></div>
+  <div id="mapView" hidden></div>
   <div id="results"></div>
 
   <script src="vendor/flatpickr/flatpickr.min.js"></script>

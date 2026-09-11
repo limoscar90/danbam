@@ -200,6 +200,7 @@ async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter, filterKeys
             services: d.services || [],
             activities: d.activities || [],
             leisureTypes: d.leisureTypes || [],
+            address: d.address1 || null, // 지오코딩용 - 검색 응답의 city+major만으론 좌표 정확도가 너무 낮다
           }];
         } catch (e) {
           return [id, null];
@@ -274,7 +275,7 @@ async function searchCamfit({ sido, sigungu, adults, hasNameOrFilter, filterKeys
     return {
       platform: '캠핏',
       name: c.name,
-      addr: `${c.city} ${c.major}`,
+      addr: (detail && detail.address) || `${c.city} ${c.major}`,
       price: c.priceStartFrom ?? null,
       totalSites: zones.length || null,
       availableSites: zones.length ? availableZones : null,
@@ -325,6 +326,34 @@ function matchesFilters(item, filterKeys) {
   });
 }
 
+// 캠핏/땡큐캠핑은 좌표를 안 줘서, 네이버 지도 Geocoding API로 주소를 좌표로 바꾼다.
+// 같은 캠핑장 주소가 재검색마다 반복되니 프로세스 생명주기 동안은 캐싱해서 호출을 아낀다.
+const geocodeCache = new Map();
+async function geocodeAddress(address) {
+  if (!address) return null;
+  if (geocodeCache.has(address)) return geocodeCache.get(address);
+  const clientId = process.env.NCP_MAPS_CLIENT_ID;
+  const clientSecret = process.env.NCP_MAPS_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null; // 키 없으면 지도 기능만 조용히 빠진다 (검색 자체는 그대로 동작)
+  try {
+    const url = `https://maps.apigw.ntruss.com/map-geocode/v2/geocode?query=${encodeURIComponent(address)}`;
+    const res = await fetch(url, {
+      headers: {
+        'x-ncp-apigw-api-key-id': clientId,
+        'x-ncp-apigw-api-key': clientSecret,
+      },
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const first = json.addresses && json.addresses[0];
+    const result = first ? { lat: Number(first.y), lng: Number(first.x) } : null;
+    geocodeCache.set(address, result);
+    return result;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function searchNaver({ sido, sigungu, keyword }) {
   const queryParts = [sido, sigungu, keyword, '캠핑장'].filter(Boolean);
   if (!sido && !sigungu && !keyword) return []; // 검색어가 전혀 없으면 지도 중심 위치 기준으로만 나와 의미가 없다.
@@ -354,6 +383,9 @@ async function searchNaver({ sido, sigungu, keyword }) {
       reviewCount: (p.reviewCount ?? p.placeReviewCount) || null,
       thumbnail: p.thumUrl || (p.thumUrls && p.thumUrls[0]) || null,
       link: `https://m.place.naver.com/place/${p.id}/home`,
+      // 네이버 검색 응답엔 좌표가 그대로 들어있어 지오코딩이 필요 없다(x=경도, y=위도, 둘 다 문자열).
+      lat: p.y ? Number(p.y) : null,
+      lng: p.x ? Number(p.x) : null,
     }));
 }
 
@@ -445,7 +477,12 @@ app.get('/api/me', (req, res) => {
 });
 
 app.get('/api/meta', requireApiAuth, (req, res) => {
-  res.json({ siteTypes: THANKQ_SITE_TYPE, filterTags: FILTER_TAGS });
+  res.json({
+    siteTypes: THANKQ_SITE_TYPE,
+    filterTags: FILTER_TAGS,
+    // Client ID는 지도 SDK 로드용으로 브라우저에 그대로 노출돼도 되는 값이다(Secret은 서버에만 둔다).
+    naverMapsClientId: process.env.NCP_MAPS_CLIENT_ID || null,
+  });
 });
 
 app.get('/api/search', requireApiAuth, async (req, res) => {
@@ -453,6 +490,8 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
   const keyword = (req.query.keyword || '').trim();
   const filterKeys = (req.query.filters || '').split(',').map((s) => s.trim()).filter(Boolean);
   const hasNameOrFilter = Boolean(keyword) || filterKeys.length > 0;
+  const onlyAvailable = req.query.onlyAvailable === 'true';
+  const wantsMap = req.query.map === 'true';
   const checkinD = req.query.checkin ? new Date(req.query.checkin) : new Date(Date.now() + 24 * 3600 * 1000);
   const checkoutD = req.query.checkout ? new Date(req.query.checkout) : new Date(checkinD.getTime() + 24 * 3600 * 1000);
   const checkin = fmtDate(checkinD);
@@ -497,7 +536,32 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
     }
   }
 
+  if (onlyAvailable) {
+    items = items.filter((i) => i.availableSites == null || i.availableSites > 0);
+    if (items.some((i) => i.availableSites == null)) {
+      notices.push('네이버 결과는 실시간 잔여석 정보를 제공하지 않아 예약 가능 필터와 무관하게 모두 표시됩니다.');
+    }
+  }
+
   items.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+
+  // 지오코딩(주소->좌표)은 외부 API 호출 비용이 있어, 지도 뷰를 실제로 켰을 때만(map=true) 수행한다.
+  if (wantsMap) {
+    await Promise.all(
+      items
+        .filter((i) => i.lat == null || i.lng == null)
+        .map(async (i) => {
+          const coords = await geocodeAddress(i.addr);
+          if (coords) {
+            i.lat = coords.lat;
+            i.lng = coords.lng;
+          }
+        })
+    );
+    if (!process.env.NCP_MAPS_CLIENT_ID) {
+      notices.push('네이버 지도 API 키가 설정되지 않아 캠핏/땡큐캠핑 결과는 지도에 표시되지 않습니다.');
+    }
+  }
 
   res.json({ checkin, checkout, count: items.length, items, errors, notices });
 });
