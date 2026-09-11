@@ -66,14 +66,36 @@ span.flatpickr-weekday,
 .view-toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .view-toggle-btn.disabled { opacity: 0.4; cursor: not-allowed; }
 
+.map-view-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+
 #mapView {
   height: 60vh;
   min-height: 420px;
   border-radius: 12px;
   border: 1px solid var(--line);
-  margin-bottom: 12px;
   overflow: hidden;
 }
+
+.search-area-btn {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.search-area-btn:hover { background: #1a251f; }
 
 .map-price-marker {
   transform: translate(-50%, -100%);

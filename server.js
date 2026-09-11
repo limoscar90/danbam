@@ -126,7 +126,9 @@ async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType
     amenities: (c.campSpecs || []).map((code) => THANKQ_SPEC_LABELS[code]).filter(Boolean),
     reviewCount: c.brdCnt ?? null,
     thumbnail: c.campPicList && c.campPicList[0] ? c.campPicList[0].imgUrl : null,
-    link: `https://m.thankqcamping.com/resv/camp_detail.hbb?camp_seq=${c.campSeq}`,
+    // 예전에 쓰던 camp_detail.hbb?camp_seq=는 404 나는 잘못된 경로였다 - 실제 사이트에서 직접
+    // 확인한 진짜 상세페이지 경로(view.hbb?cseq=)로 교체.
+    link: `https://m.thankqcamping.com/resv/view.hbb?cseq=${c.campSeq}&res_dt=${checkin}&res_edt=${checkout}`,
   }));
 }
 

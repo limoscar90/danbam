@@ -1,8 +1,10 @@
 const form = document.getElementById('searchForm');
 const statusEl = document.getElementById('status');
 const resultsEl = document.getElementById('results');
+const mapViewWrapEl = document.getElementById('mapViewWrap');
 const mapViewEl = document.getElementById('mapView');
 const mapCarouselEl = document.getElementById('mapCarousel');
+const searchAreaBtnEl = document.getElementById('searchAreaBtn');
 const listViewBtn = document.getElementById('listViewBtn');
 const mapViewBtn = document.getElementById('mapViewBtn');
 const siteTypeInput = document.getElementById('siteTypeInput');
@@ -18,6 +20,8 @@ let naverMapsClientId = null;
 let naverMapsSdkPromise = null;
 let naverMap = null;
 let mapMarkers = []; // { marker, link }[]
+let allMapItems = []; // 현재 검색 결과 중 좌표가 있는 전체 목록 - "이 지역에서 검색" 필터링용
+let suppressMapEvents = false; // fitBounds/panTo 같은 코드로 인한 이동은 "지도 움직임"으로 안 치게 막는 플래그
 
 function fmtYmd(d) {
   const y = d.getFullYear();
@@ -226,6 +230,7 @@ function carouselCardHtml(item) {
         <h4>${esc(item.name)}</h4>
         <div class="addr">${esc(item.addr || '')}</div>
         <div class="price">${won(item.price)}</div>
+        <a class="link" href="${esc(item.link)}" target="_blank" rel="noopener">사이트에서 보기 →</a>
       </div>
     </div>
   `;
@@ -245,34 +250,33 @@ function highlightCarouselCard(link) {
   }
 }
 
-async function renderMap(items) {
-  await loadNaverMapsSdk();
-  if (!naverMap) {
-    naverMap = new naver.maps.Map(mapViewEl, {
-      center: new naver.maps.LatLng(36.5, 127.8),
-      zoom: 7,
-    });
-  }
+// fitBounds/panTo처럼 코드가 지도를 움직이는 동안엔 dragend/zoom_changed를 사용자 조작으로 착각하지 않게 막는다.
+function moveMapSilently(fn) {
+  suppressMapEvents = true;
+  fn();
+  setTimeout(() => { suppressMapEvents = false; }, 300);
+}
+
+function renderMarkersAndCarousel(items) {
   mapMarkers.forEach((m) => m.marker.setMap(null));
   mapMarkers = [];
 
-  const withCoords = items.filter((i) => i.lat != null && i.lng != null);
-  mapCarouselEl.innerHTML = withCoords.map(carouselCardHtml).join('')
-    || '<p class="carousel-empty">지도에 표시할 좌표가 있는 캠핑장이 없어요.</p>';
+  mapCarouselEl.innerHTML = items.map(carouselCardHtml).join('')
+    || '<p class="carousel-empty">지도에 표시할 캠핑장이 없어요.</p>';
   mapCarouselEl.querySelectorAll('.carousel-card').forEach((card) => {
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('a')) return; // "사이트에서 보기" 링크 클릭은 지도 이동을 트리거하지 않는다.
       const link = card.dataset.link;
       highlightCarouselCard(link);
       const found = mapMarkers.find((m) => m.link === link);
       if (found) {
-        naverMap.panTo(found.marker.getPosition());
+        moveMapSilently(() => naverMap.panTo(found.marker.getPosition()));
         highlightMarker(link);
       }
     });
   });
 
-  const bounds = new naver.maps.LatLngBounds();
-  withCoords.forEach((item) => {
+  items.forEach((item) => {
     const position = new naver.maps.LatLng(item.lat, item.lng);
     const marker = new naver.maps.Marker({
       position,
@@ -287,10 +291,45 @@ async function renderMap(items) {
       highlightMarker(item.link);
     });
     mapMarkers.push({ marker, link: item.link });
-    bounds.extend(position);
   });
-  if (withCoords.length) naverMap.fitBounds(bounds);
 }
+
+async function renderMap(items) {
+  await loadNaverMapsSdk();
+  if (!naverMap) {
+    naverMap = new naver.maps.Map(mapViewEl, {
+      center: new naver.maps.LatLng(36.5, 127.8),
+      zoom: 7,
+    });
+    // 사용자가 직접 드래그/줌했을 때만 "이 지역에서 검색" 버튼을 보여준다(우리 코드가 움직인 건 제외).
+    naver.maps.Event.addListener(naverMap, 'dragend', () => {
+      if (!suppressMapEvents) searchAreaBtnEl.hidden = false;
+    });
+    naver.maps.Event.addListener(naverMap, 'zoom_changed', () => {
+      if (!suppressMapEvents) searchAreaBtnEl.hidden = false;
+    });
+  }
+
+  const withCoords = items.filter((i) => i.lat != null && i.lng != null);
+  allMapItems = withCoords;
+  renderMarkersAndCarousel(withCoords);
+
+  const bounds = new naver.maps.LatLngBounds();
+  withCoords.forEach((item) => bounds.extend(new naver.maps.LatLng(item.lat, item.lng)));
+  if (withCoords.length) moveMapSilently(() => naverMap.fitBounds(bounds));
+  searchAreaBtnEl.hidden = true;
+}
+
+function searchThisArea() {
+  const bounds = naverMap.getBounds();
+  const visible = allMapItems.filter((i) => bounds.hasLatLng(new naver.maps.LatLng(i.lat, i.lng)));
+  renderMarkersAndCarousel(visible);
+  statusEl.className = '';
+  statusEl.textContent = `현재 지도 범위 내 ${visible.length}건`;
+  searchAreaBtnEl.hidden = true;
+}
+
+searchAreaBtnEl.addEventListener('click', searchThisArea);
 
 function highlightMarker(link) {
   // 마커는 HTML 오버레이라 SDK 객체가 아니라 DOM에서 직접 찾아 하이라이트한다.
@@ -309,9 +348,10 @@ function setViewMode(mode) {
   mapMode = mode === 'map';
   listViewBtn.classList.toggle('active', !mapMode);
   mapViewBtn.classList.toggle('active', mapMode);
-  mapViewEl.hidden = !mapMode;
+  mapViewWrapEl.hidden = !mapMode;
   mapCarouselEl.hidden = !mapMode;
   resultsEl.hidden = mapMode;
+  if (!mapMode) searchAreaBtnEl.hidden = true;
   // 지도로 처음 전환할 때만 좌표를 포함해서 다시 검색한다(리스트<->지도 왕복은 재검색 없이 캐시된 결과로 전환).
   if (mapMode && !wasMap) form.dispatchEvent(new Event('submit'));
   return true;
