@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DANBAM</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <h1>🏕️ DANBAM <span class="badge">개인용 프로토타입</span></h1>
+      <div class="user-badge" id="userBadge"></div>
+    </div>
+    <p class="sub">캠핏 + 땡큐캠핑 + 네이버를 한 번에 검색합니다</p>
+  </header>
+
+  <form id="searchForm">
+    <div class="field field-wide">
+      <label for="keyword">숙소명 검색</label>
+      <input id="keyword" name="keyword" placeholder="예: 자라섬 (비워두면 전체)" />
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="sido">시/도</label>
+        <input id="sido" name="sido" list="sidoList" placeholder="전체" />
+        <datalist id="sidoList">
+          <option value="서울"></option><option value="경기"></option><option value="인천"></option>
+          <option value="강원"></option><option value="충북"></option><option value="충남"></option>
+          <option value="대전"></option><option value="전북"></option><option value="전남"></option>
+          <option value="광주"></option><option value="경북"></option><option value="경남"></option>
+          <option value="대구"></option><option value="부산"></option><option value="울산"></option>
+          <option value="제주"></option>
+        </datalist>
+      </div>
+      <div class="field">
+        <label for="sigungu">시/군/구</label>
+        <input id="sigungu" name="sigungu" placeholder="전체" />
+      </div>
+      <div class="field">
+        <label for="checkin">체크인</label>
+        <input id="checkin" name="checkin" type="date" required />
+      </div>
+      <div class="field">
+        <label for="checkout">체크아웃</label>
+        <input id="checkout" name="checkout" type="date" required />
+      </div>
+      <div class="field">
+        <label for="adults">인원</label>
+        <input id="adults" name="adults" type="number" min="1" value="2" required />
+      </div>
+    </div>
+
+    <div class="filter-section">
+      <div class="filter-section-title">숙소유형</div>
+      <div class="chip-row" id="siteTypeChips"></div>
+    </div>
+
+    <div id="filterGroups"></div>
+
+    <input type="hidden" id="siteTypeInput" name="siteType" value="" />
+    <input type="hidden" id="filtersInput" name="filters" value="" />
+
+    <div class="form-actions">
+      <button type="button" id="resetBtn" class="btn-secondary">초기화</button>
+      <button type="submit" class="btn-primary">검색</button>
+    </div>
+  </form>
+
+  <div id="status"></div>
+  <div id="results"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

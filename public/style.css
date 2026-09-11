@@ -1,0 +1,376 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --card: #ffffff;
+  --ink: #24312a;
+  --muted: #6b7a70;
+  --accent: #2f7a4f;
+  --accent-2: #e08a3c;
+  --line: #e2e0d6;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", "Pretendard", Roboto, sans-serif;
+  padding: 24px;
+}
+
+header h1 {
+  margin: 0 0 4px;
+  font-size: 1.6rem;
+}
+
+.badge {
+  font-size: 0.65rem;
+  background: var(--accent);
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+.sub {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.user-badge button {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.user-badge button:hover { background: #eef1ec; }
+
+.auth-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.auth-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 28px;
+  width: 100%;
+  max-width: 360px;
+}
+
+.auth-card h1 {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+  text-align: center;
+}
+
+.auth-card .sub {
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.auth-card .field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.field-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.auth-error {
+  color: #b3452c;
+  font-size: 0.85rem;
+  min-height: 1em;
+}
+
+.auth-submit {
+  width: 100%;
+  height: 42px;
+}
+
+.auth-switch {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 16px 0 0;
+}
+
+.auth-switch a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-switch a:hover { text-decoration: underline; }
+
+#searchForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.field-wide { width: 100%; }
+
+.field input, .field select {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  min-width: 110px;
+}
+
+.field-wide input {
+  width: 100%;
+  font-size: 1rem;
+  padding: 10px 12px;
+}
+
+.filter-section-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  background: #eef1ec;
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip:hover { background: #e2e8e0; }
+
+.chip.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+#filterGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn-primary, .btn-secondary {
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  height: 40px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover { background: #245f3e; }
+
+.btn-secondary {
+  background: #eef1ec;
+  color: var(--ink);
+}
+
+.btn-secondary:hover { background: #e2e8e0; }
+
+#status {
+  color: var(--muted);
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+#status.error { color: #b3452c; }
+
+#results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.card img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  background: #eee;
+}
+
+.card-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.platform-tag {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.platform-tag.캠핏 { background: #2f7a4f; }
+.platform-tag.땡큐캠핑 { background: var(--accent-2); }
+.platform-tag.네이버 { background: #03a30b; }
+
+.card h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.card .addr {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.card .price {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.card .avail {
+  font-size: 0.85rem;
+}
+
+.card .avail.ok { color: var(--accent); }
+.card .avail.none { color: #b3452c; }
+
+.amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.amenities span {
+  font-size: 0.7rem;
+  background: #eef1ec;
+  color: var(--ink);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.amenities span.more {
+  background: transparent;
+  color: var(--muted);
+  padding: 2px 2px;
+}
+
+.card a.link {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.card a.link:hover { text-decoration: underline; }
+
+@media (max-width: 480px) {
+  body { padding: 12px; }
+
+  header h1 { font-size: 1.3rem; }
+
+  #searchForm { padding: 12px; }
+
+  .row { flex-direction: column; align-items: stretch; }
+
+  .field input, .field select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .form-actions { flex-direction: column-reverse; }
+
+  .btn-primary, .btn-secondary {
+    width: 100%;
+    height: 44px;
+  }
+
+  #results {
+    grid-template-columns: 1fr;
+  }
+}

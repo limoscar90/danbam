@@ -1,0 +1,17 @@
+{
+  "name": "danbamcamp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DANBAM - 캠핏 + 땡큐캠핑 + 네이버 캠핑장 통합 검색",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "express": "^4.19.2",
+    "express-session": "^1.19.0",
+    "playwright": "^1.47.0"
+  }
+}
