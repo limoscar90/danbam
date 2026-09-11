@@ -204,41 +204,6 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   form.dispatchEvent(new Event('submit'));
 });
 
-document.getElementById('myLocationBtn').addEventListener('click', () => {
-  if (!navigator.geolocation) {
-    statusEl.className = 'error';
-    statusEl.textContent = '이 브라우저는 위치 정보를 지원하지 않아요.';
-    return;
-  }
-  statusEl.className = '';
-  statusEl.textContent = '현재 위치 확인 중...';
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        const { latitude, longitude } = pos.coords;
-        const res = await fetch(`/api/reverse-geocode?lat=${latitude}&lng=${longitude}`);
-        if (res.status === 401) return (window.location.href = '/login');
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || '지역을 찾지 못했어요.');
-        document.getElementById('sido').value = data.sido;
-        document.getElementById('sigungu').value = data.sigungu;
-        form.dispatchEvent(new Event('submit'));
-      } catch (err) {
-        statusEl.className = 'error';
-        statusEl.textContent = '현재 위치 검색 실패: ' + err.message;
-      }
-    },
-    (err) => {
-      statusEl.className = 'error';
-      // 흔한 원인: 브라우저 위치 권한 거부. 안내를 조금 더 친절하게 해준다.
-      statusEl.textContent = err.code === err.PERMISSION_DENIED
-        ? '위치 권한이 거부됐어요. 브라우저 설정에서 이 사이트의 위치 접근을 허용해주세요.'
-        : '현재 위치를 가져오지 못했어요: ' + err.message;
-    },
-    { timeout: 10000 }
-  );
-});
-
 function availabilityHtml(item) {
   if (item.totalSites == null || item.availableSites == null) {
     return '<span class="avail">잔여석 정보 없음</span>';
