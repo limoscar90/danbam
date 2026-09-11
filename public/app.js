@@ -2,7 +2,9 @@ const form = document.getElementById('searchForm');
 const statusEl = document.getElementById('status');
 const resultsEl = document.getElementById('results');
 const mapViewEl = document.getElementById('mapView');
-const mapToggleBtn = document.getElementById('mapToggleBtn');
+const mapCarouselEl = document.getElementById('mapCarousel');
+const listViewBtn = document.getElementById('listViewBtn');
+const mapViewBtn = document.getElementById('mapViewBtn');
 const siteTypeInput = document.getElementById('siteTypeInput');
 const filtersInput = document.getElementById('filtersInput');
 const onlyAvailableInput = document.getElementById('onlyAvailableInput');
@@ -15,7 +17,7 @@ let mapMode = false;
 let naverMapsClientId = null;
 let naverMapsSdkPromise = null;
 let naverMap = null;
-let mapMarkers = [];
+let mapMarkers = []; // { marker, link }[]
 
 function fmtYmd(d) {
   const y = d.getFullYear();
@@ -69,8 +71,8 @@ async function loadMeta() {
   renderSiteTypeChips(data.siteTypes || {});
   renderFilterGroups(filterTags);
   if (!naverMapsClientId) {
-    mapToggleBtn.classList.add('disabled');
-    mapToggleBtn.title = '네이버 지도 API 키가 아직 설정되지 않았어요';
+    mapViewBtn.classList.add('disabled');
+    mapViewBtn.title = '네이버 지도 API 키가 아직 설정되지 않았어요';
   }
 }
 
@@ -212,6 +214,32 @@ function cardHtml(item) {
   `;
 }
 
+function carouselCardHtml(item) {
+  const img = item.thumbnail
+    ? `<img src="${esc(item.thumbnail)}" alt="${esc(item.name)}" loading="lazy" />`
+    : '';
+  return `
+    <div class="carousel-card" data-link="${esc(item.link)}">
+      ${img}
+      <div class="carousel-card-body">
+        <span class="platform-tag ${esc(item.platform)}">${esc(item.platform)}</span>
+        <h4>${esc(item.name)}</h4>
+        <div class="addr">${esc(item.addr || '')}</div>
+        <div class="price">${won(item.price)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// 지도 마커 <-> 아래 캐러셀 카드를 서로 하이라이트해서 어떤 게 어떤 건지 바로 알 수 있게 한다.
+function highlightCarouselCard(link) {
+  mapCarouselEl.querySelectorAll('.carousel-card').forEach((el) => {
+    el.classList.toggle('highlight', el.dataset.link === link);
+  });
+  const card = mapCarouselEl.querySelector(`[data-link="${CSS.escape(link)}"]`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
 async function renderMap(items) {
   await loadNaverMapsSdk();
   if (!naverMap) {
@@ -220,10 +248,24 @@ async function renderMap(items) {
       zoom: 7,
     });
   }
-  mapMarkers.forEach((m) => m.setMap(null));
+  mapMarkers.forEach((m) => m.marker.setMap(null));
   mapMarkers = [];
 
   const withCoords = items.filter((i) => i.lat != null && i.lng != null);
+  mapCarouselEl.innerHTML = withCoords.map(carouselCardHtml).join('')
+    || '<p class="carousel-empty">지도에 표시할 좌표가 있는 캠핑장이 없어요.</p>';
+  mapCarouselEl.querySelectorAll('.carousel-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      const link = card.dataset.link;
+      highlightCarouselCard(link);
+      const found = mapMarkers.find((m) => m.link === link);
+      if (found) {
+        naverMap.panTo(found.marker.getPosition());
+        highlightMarker(link);
+      }
+    });
+  });
+
   const bounds = new naver.maps.LatLngBounds();
   withCoords.forEach((item) => {
     const position = new naver.maps.LatLng(item.lat, item.lng);
@@ -231,39 +273,47 @@ async function renderMap(items) {
       position,
       map: naverMap,
       icon: {
-        content: `<div class="map-price-marker platform-${esc(item.platform)}">▲ ${won(item.price)}</div>`,
+        content: `<div class="map-price-marker platform-${esc(item.platform)}" data-link="${esc(item.link)}">▲ ${won(item.price)}</div>`,
         anchor: new naver.maps.Point(30, 34),
       },
     });
     naver.maps.Event.addListener(marker, 'click', () => {
-      setMapMode(false);
-      const card = resultsEl.querySelector(`[data-link="${CSS.escape(item.link)}"]`);
-      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      highlightCarouselCard(item.link);
+      highlightMarker(item.link);
     });
-    mapMarkers.push(marker);
+    mapMarkers.push({ marker, link: item.link });
     bounds.extend(position);
   });
   if (withCoords.length) naverMap.fitBounds(bounds);
 }
 
-function setMapMode(on) {
-  if (on && !naverMapsClientId) {
+function highlightMarker(link) {
+  // 마커는 HTML 오버레이라 SDK 객체가 아니라 DOM에서 직접 찾아 하이라이트한다.
+  mapViewEl.querySelectorAll('.map-price-marker').forEach((el) => {
+    el.classList.toggle('active', el.dataset.link === link);
+  });
+}
+
+function setViewMode(mode) {
+  if (mode === 'map' && !naverMapsClientId) {
     statusEl.className = 'error';
     statusEl.textContent = '네이버 지도 API 키가 아직 설정되지 않아 지도를 켤 수 없어요.';
     return false;
   }
-  mapMode = on;
-  mapToggleBtn.classList.toggle('active', mapMode);
+  const wasMap = mapMode;
+  mapMode = mode === 'map';
+  listViewBtn.classList.toggle('active', !mapMode);
+  mapViewBtn.classList.toggle('active', mapMode);
   mapViewEl.hidden = !mapMode;
+  mapCarouselEl.hidden = !mapMode;
   resultsEl.hidden = mapMode;
+  // 지도로 처음 전환할 때만 좌표를 포함해서 다시 검색한다(리스트<->지도 왕복은 재검색 없이 캐시된 결과로 전환).
+  if (mapMode && !wasMap) form.dispatchEvent(new Event('submit'));
   return true;
 }
 
-mapToggleBtn.addEventListener('click', () => {
-  const wasMap = mapMode;
-  if (!setMapMode(!mapMode)) return;
-  if (!wasMap) form.dispatchEvent(new Event('submit')); // 지도를 새로 켤 때만 좌표 포함해서 다시 검색
-});
+listViewBtn.addEventListener('click', () => setViewMode('list'));
+mapViewBtn.addEventListener('click', () => setViewMode('map'));
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
