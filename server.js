@@ -613,6 +613,13 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
   if (naverResult.status === 'fulfilled') items.push(...naverResult.value);
   else errors.push({ platform: '네이버', message: String(naverResult.reason) });
 
+  // 네이버 지도는 캠핏/땡큐캠핑과 달리 진짜 전국검색이 없어서, 지역/검색어가 전부 비어있으면
+  // (searchNaver 안에서) 조용히 빈 배열을 반환한다 - 그냥 0건이라고만 나오면 왜 그런지 알 수 없어
+  // 이유를 명시적으로 알려준다.
+  if (wantsPlatform('네이버') && !sido && !sigungu && !keyword) {
+    notices.push('네이버 지도는 지역(시/도, 시/군/구)이나 숙소명 검색어가 있어야 결과를 보여줄 수 있어요 (전체 검색은 지원하지 않음).');
+  }
+
   // 캠핏/땡큐캠핑 모두 검색어 파라미터를 실제로는 걸러주지 않아(확인됨), 이름 검색은
   // 넓게 받아온 결과를 이름 문자열로 직접 한 번 더 거른다.
   if (keyword) {
