@@ -237,7 +237,12 @@ function highlightCarouselCard(link) {
     el.classList.toggle('highlight', el.dataset.link === link);
   });
   const card = mapCarouselEl.querySelector(`[data-link="${CSS.escape(link)}"]`);
-  if (card) card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  if (card) {
+    // scrollIntoView는 세로 방향도 같이 건드려서 페이지가 아래로 내려갔다 올라오는 문제가 있었다.
+    // 캐러셀 자신의 scrollLeft만 옮겨서 지도가 보이는 위치는 그대로 유지한다.
+    const target = card.offsetLeft - (mapCarouselEl.clientWidth - card.clientWidth) / 2;
+    mapCarouselEl.scrollTo({ left: target, behavior: 'smooth' });
+  }
 }
 
 async function renderMap(items) {

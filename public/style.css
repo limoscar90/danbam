@@ -257,7 +257,10 @@ header h1 {
 .auth-card h1 {
   margin: 0 0 4px;
   font-size: 1.4rem;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .auth-card .sub {
