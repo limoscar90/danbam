@@ -9,6 +9,13 @@ const userStore = require('./lib/userStore');
 const PORT = process.env.PORT || 5173;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'danbam-dev-secret-change-me';
 
+// 캠핏/땡큐캠핑/네이버 세 외부 사이트 중 하나가 타임아웃/에러를 내도 서버 전체가 죽지 않게 하는
+// 안전장치. 제대로 된 고침은 에러가 나는 지점을 직접 고치는 것(예: searchNaver의 Promise.all
+// 패턴)이지만, 예상 못한 비슷한 버그가 또 생겨도 이거 하나로 서버 전체가 다운되는 건 막는다.
+process.on('unhandledRejection', (err) => {
+  console.error('처리되지 않은 Promise 거부(서버는 계속 실행됨):', err);
+});
+
 // --- 땡큐캠핑 편의시설 코드 -> 라벨 매핑 (필터 UI에서 확보) ---
 const THANKQ_SPEC_LABELS = {
   BM000: '개별화장실', BM001: '개별샤워실', BL004: '매점', BL003: '와이파이',
@@ -363,12 +370,14 @@ async function searchNaver({ sido, sigungu, keyword }) {
   const query = queryParts.join(' ');
   const searchUrl = `https://map.naver.com/p/search/${encodeURIComponent(query)}`;
 
-  const responsePromise = page.waitForResponse(
-    (res) => res.url().includes('/p/api/search/allSearch'),
-    { timeout: 20000 }
-  );
-  await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  const res = await responsePromise;
+  // waitForResponse를 만들어두고 goto 이후에 따로 await하면, goto가 오래 걸리는 사이 응답
+  // 대기가 먼저 타임아웃될 때 "핸들러가 아직 안 붙은 상태의 reject"가 생겨서 Node 프로세스 전체가
+  // 죽는 문제가 있었다(Promise.allSettled로도 못 막음). Promise.all로 두 프로미스를 같은 시점에
+  // 묶어서 이 문제를 없앤다 - Playwright 공식 문서에서 권장하는 패턴이기도 하다.
+  const [res] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/p/api/search/allSearch'), { timeout: 20000 }),
+    page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }),
+  ]);
   const json = await res.json();
 
   const list = (json && json.result && json.result.place && json.result.place.list) || [];
