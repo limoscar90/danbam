@@ -297,12 +297,18 @@ app.use(session({
   },
 }));
 
+// 로컬에서 로그인 없이 바로 켜볼 수 있도록 기본은 OFF. 배포 환경(render.yaml)에서는
+// ENABLE_AUTH=true로 설정해 실제 서비스에는 로그인이 걸리게 한다.
+const AUTH_ENABLED = process.env.ENABLE_AUTH === 'true';
+
 function requirePageAuth(req, res, next) {
+  if (!AUTH_ENABLED) return next();
   if (req.session && req.session.userId) return next();
   res.redirect('/login');
 }
 
 function requireApiAuth(req, res, next) {
+  if (!AUTH_ENABLED) return next();
   if (req.session && req.session.userId) return next();
   res.status(401).json({ error: '로그인이 필요합니다.' });
 }
@@ -360,6 +366,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/me', (req, res) => {
   if (req.session && req.session.userId) return res.json({ email: req.session.email });
+  if (!AUTH_ENABLED) return res.json({ email: null });
   res.status(401).json({ error: '로그인이 필요합니다.' });
 });
 

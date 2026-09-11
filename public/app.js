@@ -43,6 +43,7 @@ async function loadMe() {
   if (res.status === 401) return (window.location.href = '/login');
   const data = await res.json();
   const badge = document.getElementById('userBadge');
+  if (!data.email) return; // 로그인 기능이 꺼져있는 상태(ENABLE_AUTH=false) - 배지를 표시하지 않는다.
   badge.innerHTML = `<span>${esc(data.email)}</span><button type="button" id="logoutBtn">로그아웃</button>`;
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST' });
