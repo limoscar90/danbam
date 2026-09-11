@@ -481,6 +481,12 @@ header h1 {
   gap: 6px;
 }
 
+.platform-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .platform-tag {
   align-self: flex-start;
   font-size: 0.7rem;
@@ -492,6 +498,30 @@ header h1 {
 .platform-tag.캠핏 { background: #2f7a4f; }
 .platform-tag.땡큐캠핑 { background: var(--accent-2); }
 .platform-tag.네이버 { background: #03a30b; }
+
+/* 같은 캠핑장이 여러 플랫폼에 있을 때 원하는 곳을 고를 수 있는 버튼들 */
+.platform-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.platform-link-btn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.platform-link-btn:hover { opacity: 0.85; }
+
+.platform-link-btn.platform-캠핏 { background: #2f7a4f; }
+.platform-link-btn.platform-땡큐캠핑 { background: var(--accent-2); }
+.platform-link-btn.platform-네이버 { background: #03a30b; }
 
 .card h3 {
   margin: 0;

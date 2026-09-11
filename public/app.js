@@ -189,6 +189,27 @@ function availabilityHtml(item) {
   return `<span class="avail ${ok ? 'ok' : 'none'}">${ok ? `잔여 ${item.availableSites}/${item.totalSites}` : '예약 마감'}</span>`;
 }
 
+// 같은 캠핑장이 여러 플랫폼에 등록돼 있으면(item.links.length > 1) 플랫폼 태그도, 이동 링크도
+// 여러 개 보여줘서 사용자가 원하는 곳(자주 쓰는 결제수단 등)을 직접 고를 수 있게 한다.
+function platformTagsHtml(item) {
+  const platforms = item.links && item.links.length > 1 ? item.links.map((l) => l.platform) : [item.platform];
+  return platforms.map((p) => `<span class="platform-tag ${esc(p)}">${esc(p)}</span>`).join('');
+}
+
+function platformLinksHtml(item) {
+  const links = item.links && item.links.length ? item.links : [{ platform: item.platform, link: item.link, price: item.price }];
+  if (links.length === 1) {
+    return `<a class="link" href="${esc(links[0].link)}" target="_blank" rel="noopener">사이트에서 보기 →</a>`;
+  }
+  return `
+    <div class="platform-links">
+      ${links.map((l) => (
+        `<a class="platform-link-btn platform-${esc(l.platform)}" href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.platform)}${l.price != null ? ` ${l.price.toLocaleString('ko-KR')}원~` : ''}</a>`
+      )).join('')}
+    </div>
+  `;
+}
+
 function cardHtml(item) {
   // 지금 선택된 필터에 해당하는 편의시설은 검색 이유가 되는 경우가 많아 앞으로 정렬해 잘리지 않게 한다.
   const activeMatches = filterTags
@@ -206,13 +227,13 @@ function cardHtml(item) {
     <div class="card" data-link="${esc(item.link)}">
       ${img}
       <div class="card-body">
-        <span class="platform-tag ${esc(item.platform)}">${esc(item.platform)}</span>
+        <div class="platform-tags">${platformTagsHtml(item)}</div>
         <h3>${esc(item.name)}</h3>
         <div class="addr">${esc(item.addr || '')}</div>
         <div class="price">${won(item.price)}</div>
         ${availabilityHtml(item)}
         <div class="amenities">${amenities}</div>
-        <a class="link" href="${esc(item.link)}" target="_blank" rel="noopener">사이트에서 보기 →</a>
+        ${platformLinksHtml(item)}
       </div>
     </div>
   `;
@@ -226,11 +247,11 @@ function carouselCardHtml(item) {
     <div class="carousel-card" data-link="${esc(item.link)}">
       ${img}
       <div class="carousel-card-body">
-        <span class="platform-tag ${esc(item.platform)}">${esc(item.platform)}</span>
+        <div class="platform-tags">${platformTagsHtml(item)}</div>
         <h4>${esc(item.name)}</h4>
         <div class="addr">${esc(item.addr || '')}</div>
         <div class="price">${won(item.price)}</div>
-        <a class="link" href="${esc(item.link)}" target="_blank" rel="noopener">사이트에서 보기 →</a>
+        ${platformLinksHtml(item)}
       </div>
     </div>
   `;

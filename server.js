@@ -336,6 +336,51 @@ function parseNaverPrice(menuInfo) {
   return m ? Number(m[1].replace(/,/g, '')) : null;
 }
 
+// 같은 캠핑장이 여러 플랫폼(네이버/캠핏/땡큐캠핑)에 동시에 등록된 경우, 카드 하나로 묶어서
+// 사용자가 원하는 플랫폼(결제 수단 등)을 직접 골라 들어갈 수 있게 한다. 플랫폼마다 표기가 조금씩
+// 달라서(괄호 안 부연설명, "前 ○○" 같은 구 이름 등) 이름+대략적인 지역(시/도+시/군/구)이 둘 다
+// 맞을 때만 같은 캠핑장으로 본다 - 이름만 보면 흔한 이름이 많아 다른 캠핑장을 잘못 묶을 수 있다.
+function normalizeCampName(name) {
+  return (name || '')
+    .replace(/\(.*?\)/g, '')
+    .replace(/[\s·\-]/g, '')
+    .replace(/캠핑장|오토캠핑|캠핑|글램핑|펜션|카라반/g, '')
+    .toLowerCase();
+}
+
+function regionKey(addr) {
+  if (!addr) return '';
+  const tokens = addr.trim().split(/\s+/);
+  const sido = (tokens[0] || '').replace(/(특별자치도|특별자치시|광역시|특별시|도)$/, '');
+  return `${sido}|${tokens[1] || ''}`;
+}
+
+function dedupeByCamp(items) {
+  const groups = new Map();
+  items.forEach((item) => {
+    const nameKey = normalizeCampName(item.name);
+    const key = nameKey ? `${nameKey}|${regionKey(item.addr)}` : `__unique_${groups.size}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  });
+
+  return [...groups.values()].map((group) => {
+    if (group.length === 1) {
+      const item = group[0];
+      return { ...item, links: [{ platform: item.platform, link: item.link, price: item.price }] };
+    }
+    const primary = [...group].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))[0];
+    const withCoords = group.find((i) => i.lat != null && i.lng != null);
+    return {
+      ...primary,
+      amenities: [...new Set(group.flatMap((i) => i.amenities || []))],
+      lat: withCoords ? withCoords.lat : primary.lat,
+      lng: withCoords ? withCoords.lng : primary.lng,
+      links: group.map((i) => ({ platform: i.platform, link: i.link, price: i.price })),
+    };
+  });
+}
+
 // filters(선택된 태그 키 배열)를 모두 만족하는지 라벨 부분일치로 판단한다(AND 조건).
 function matchesFilters(item, filterKeys) {
   const amenities = item.amenities || [];
@@ -595,6 +640,9 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
       notices.push('네이버 지도 API 키가 설정되지 않아 캠핏/땡큐캠핑 결과는 지도에 표시되지 않습니다.');
     }
   }
+
+  items = dedupeByCamp(items);
+  items.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
 
   res.json({ checkin, checkout, count: items.length, items, errors, notices });
 });
