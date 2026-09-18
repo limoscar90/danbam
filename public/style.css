@@ -213,7 +213,8 @@ span.flatpickr-weekday,
 }
 
 body {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 560px;
   background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, "Segoe UI", "Pretendard", Roboto, sans-serif;
