@@ -24,6 +24,7 @@ let naverMap = null;
 let mapMarkers = []; // { marker, link }[]
 let allMapItems = []; // 현재 검색 결과 중 좌표가 있는 전체 목록 - "이 지역에서 검색" 필터링용
 let suppressMapEvents = false; // fitBounds/panTo 같은 코드로 인한 이동은 "지도 움직임"으로 안 치게 막는 플래그
+let lastSearchHadDates = false; // 가장 최근 검색에 체크인/체크아웃이 포함됐는지 - 잔여석 표시 여부 판단용
 
 function fmtYmd(d) {
   const y = d.getFullYear();
@@ -32,31 +33,27 @@ function fmtYmd(d) {
   return `${y}-${m}-${day}`;
 }
 
-function addDays(offsetDays) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d;
-}
-
 const checkinInput = document.getElementById('checkin');
 const checkoutInput = document.getElementById('checkout');
-const defaultDateRange = [addDays(1), addDays(2)];
 
+// 날짜는 선택하지 않아도 검색이 되게(먼저 캠핑장을 둘러보고 나중에 날짜를 골라 빈자리를 확인하고
+// 싶다는 요청) 처음엔 비워둔다 - defaultDate를 안 주면 필드가 빈 채로 시작한다.
 const datePicker = flatpickr('#dateRange', {
   mode: 'range',
   locale: 'ko',
   minDate: 'today',
   dateFormat: 'Y-m-d',
-  defaultDate: defaultDateRange,
   showMonths: window.innerWidth < 480 ? 1 : 2,
   onChange(selectedDates) {
-    if (selectedDates.length !== 2) return;
+    if (selectedDates.length !== 2) {
+      checkinInput.value = '';
+      checkoutInput.value = '';
+      return;
+    }
     checkinInput.value = fmtYmd(selectedDates[0]);
     checkoutInput.value = fmtYmd(selectedDates[1]);
   },
 });
-checkinInput.value = fmtYmd(defaultDateRange[0]);
-checkoutInput.value = fmtYmd(defaultDateRange[1]);
 
 function won(n) {
   return n == null ? '가격 정보 없음' : `${n.toLocaleString('ko-KR')}원~`;
@@ -185,7 +182,9 @@ document.querySelectorAll('#platformChips .chip').forEach((btn) => {
 
 function resetFilters() {
   form.reset();
-  datePicker.setDate(defaultDateRange, true); // true = onChange 트리거 -> hidden input도 같이 갱신
+  datePicker.clear();
+  checkinInput.value = '';
+  checkoutInput.value = '';
   selectedSiteType = '';
   selectedFilters.clear();
   selectedPlatforms.clear();
@@ -205,6 +204,11 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 });
 
 function availabilityHtml(item) {
+  // 날짜를 안 고르고 검색한 경우 땡큐캠핑이 돌려주는 잔여석 수는 특정 날짜 기준이 아니라 오해를
+  // 살 수 있어(선택한 여행 날짜와 무관), 대신 날짜를 고르라는 안내만 보여준다.
+  if (!lastSearchHadDates) {
+    return '<span class="avail">날짜를 선택하면 빈자리를 확인할 수 있어요</span>';
+  }
   if (item.totalSites == null || item.availableSites == null) {
     return '<span class="avail">잔여석 정보 없음</span>';
   }
@@ -408,6 +412,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const params = new URLSearchParams(new FormData(form));
   if (mapMode) params.set('map', 'true');
+  lastSearchHadDates = Boolean(params.get('checkin') && params.get('checkout'));
   statusEl.className = '';
   statusEl.textContent = '검색 중... (캠핏·네이버는 브라우저를 여는 방식이라 느릴 때는 최대 1분까지 걸릴 수 있어요)';
   resultsEl.innerHTML = '';

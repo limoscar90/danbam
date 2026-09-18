@@ -136,8 +136,9 @@ async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType
     reviewCount: c.brdCnt ?? null,
     thumbnail: c.campPicList && c.campPicList[0] ? c.campPicList[0].imgUrl : null,
     // 예전에 쓰던 camp_detail.hbb?camp_seq=는 404 나는 잘못된 경로였다 - 실제 사이트에서 직접
-    // 확인한 진짜 상세페이지 경로(view.hbb?cseq=)로 교체.
-    link: `https://m.thankqcamping.com/resv/view.hbb?cseq=${c.campSeq}&res_dt=${checkin}&res_edt=${checkout}`,
+    // 확인한 진짜 상세페이지 경로(view.hbb?cseq=)로 교체. 날짜를 안 골랐으면 res_dt/res_edt를
+    // 아예 붙이지 않는다(빈 값으로 보내는 것보다 안전).
+    link: `https://m.thankqcamping.com/resv/view.hbb?cseq=${c.campSeq}${checkin && checkout ? `&res_dt=${checkin}&res_edt=${checkout}` : ''}`,
   }));
 }
 
@@ -699,10 +700,11 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
   const hasNameOrFilter = Boolean(keyword) || filterKeys.length > 0;
   const onlyAvailable = req.query.onlyAvailable === 'true';
   const wantsMap = req.query.map === 'true';
-  const checkinD = req.query.checkin ? new Date(req.query.checkin) : new Date(Date.now() + 24 * 3600 * 1000);
-  const checkoutD = req.query.checkout ? new Date(req.query.checkout) : new Date(checkinD.getTime() + 24 * 3600 * 1000);
-  const checkin = fmtDate(checkinD);
-  const checkout = fmtDate(checkoutD);
+  // 날짜는 필수가 아니다 - 캠핑장을 먼저 둘러보고 나중에 날짜를 골라 빈자리를 확인하고 싶다는
+  // 요청이 있어, 안 고르면 예전처럼 "내일"로 슬쩍 채우지 않고 그대로 빈 채로 검색한다(땡큐캠핑은
+  // 날짜 없이도 정상 응답하는 것을 확인함).
+  const checkin = req.query.checkin ? fmtDate(new Date(req.query.checkin)) : '';
+  const checkout = req.query.checkout ? fmtDate(new Date(req.query.checkout)) : '';
 
   // 플랫폼 필터가 비어있으면(기본값) 전체 검색 - 특정 플랫폼만 고르면 나머지는 아예 요청하지 않아서
   // (느린 캠핏/네이버를 뺄 수 있으면) 더 빨라지기도 한다.
