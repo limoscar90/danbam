@@ -338,6 +338,43 @@ function parseNaverPrice(menuInfo) {
   return m ? Number(m[1].replace(/,/g, '')) : null;
 }
 
+// 일부 캠핑장은 메뉴판(menuInfo) 대신 정식 "네이버 예약"(booking.naver.com)을 쓰기 때문에
+// menuInfo가 아예 비어서 가격을 못 읽어오는 경우가 있다(실측: "캠프 네버랜드"). hasNaverBooking이면
+// 검색 응답의 naverBookingUrl에서 사업장 id를 뽑아 booking.naver.com의 GraphQL API로 선택한
+// 날짜의 실제 최저가를 직접 조회한다. Playwright 페이지가 아니라 일반 서버 fetch로 충분하다
+// (브라우저 쿠키/세션이 필요 없는 공개 API로 확인됨).
+async function fetchNaverBookingMinPrice(businessId, checkin, checkout) {
+  try {
+    const start = `${checkin.slice(0, 4)}-${checkin.slice(4, 6)}-${checkin.slice(6, 8)}`;
+    const end = `${checkout.slice(0, 4)}-${checkout.slice(4, 6)}-${checkout.slice(6, 8)}`;
+    const query = `query bizItems($input: BizItemsParams) {
+      bizItems(input: $input) {
+        minMaxPrice { minPrice }
+        __typename
+      }
+    }`;
+    const res = await fetch('https://booking.naver.com/graphql?opName=bizItems', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operationName: 'bizItems',
+        variables: {
+          input: { availableStartDate: start, availableEndDate: end, businessId, lang: 'ko', projections: 'MIN_MAX_PRICE' },
+        },
+        query,
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const items = json && json.data && json.data.bizItems;
+    if (!items) return null;
+    const prices = items.map((i) => i.minMaxPrice && i.minMaxPrice.minPrice).filter((p) => p != null);
+    return prices.length ? Math.min(...prices) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // 같은 캠핑장이 여러 플랫폼(네이버/캠핏/땡큐캠핑)에 동시에 등록된 경우, 카드 하나로 묶어서
 // 사용자가 원하는 플랫폼(결제 수단 등)을 직접 골라 들어갈 수 있게 한다. 플랫폼마다 표기가 조금씩
 // 달라서(괄호 안 부연설명, "前 ○○" 같은 구 이름 등) 이름+대략적인 지역(시/도+시/군/구)이 둘 다
@@ -497,7 +534,7 @@ async function searchNaver(args) {
   }
 }
 
-async function searchNaverAttempt({ sido, sigungu, keyword }) {
+async function searchNaverAttempt({ sido, sigungu, keyword, checkin, checkout }) {
   // 지역/검색어가 전부 비어있어도("전체" 검색) '캠핑장'만으로 검색한다 - 네이버 지도는 위치 필터가
   // 없으면 자체 기본 정렬(인지도/리뷰 기준 상위 결과, 수도권에 몰리는 경향)로 상위 일부만 보여주지만,
   // 그래도 결과를 아예 안 보여주는 것보다는 낫다. 실측 확인: 지역 없이 '캠핑장'만 검색해도 정상적으로
@@ -518,7 +555,7 @@ async function searchNaverAttempt({ sido, sigungu, keyword }) {
   const json = await res.json();
 
   const list = (json && json.result && json.result.place && json.result.place.list) || [];
-  return list
+  const results = list
     .filter((p) => (p.category || []).some((c) => c.includes('캠핑') || c.includes('야영')))
     .map((p) => ({
       platform: '네이버',
@@ -534,7 +571,22 @@ async function searchNaverAttempt({ sido, sigungu, keyword }) {
       // 네이버 검색 응답엔 좌표가 그대로 들어있어 지오코딩이 필요 없다(x=경도, y=위도, 둘 다 문자열).
       lat: p.y ? Number(p.y) : null,
       lng: p.x ? Number(p.x) : null,
+      hasNaverBooking: p.hasNaverBooking || false,
+      naverBookingUrl: p.naverBookingUrl || null,
     }));
+
+  // menuInfo 기반 가격이 없는데 정식 네이버 예약을 쓰는 곳만 골라 실제 최저가를 추가로 조회한다
+  // (모든 네이버 결과에 매번 조회하면 검색이 느려지고, 대부분은 menuInfo만으로 이미 가격이 있다).
+  if (checkin && checkout) {
+    await Promise.all(results.map(async (item) => {
+      if (item.price != null || !item.hasNaverBooking || !item.naverBookingUrl) return;
+      const businessId = (item.naverBookingUrl.match(/bizes\/(\d+)/) || [])[1];
+      if (!businessId) return;
+      item.price = await fetchNaverBookingMinPrice(businessId, checkin, checkout);
+    }));
+  }
+
+  return results.map(({ hasNaverBooking, naverBookingUrl, ...item }) => item);
 }
 
 const app = express();
@@ -665,7 +717,7 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
       ? searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter, filterKeys })
       : Promise.resolve([]),
     wantsPlatform('네이버')
-      ? searchNaver({ sido, sigungu, keyword })
+      ? searchNaver({ sido, sigungu, keyword, checkin, checkout })
       : Promise.resolve([]),
   ]);
 
