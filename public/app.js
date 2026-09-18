@@ -412,7 +412,7 @@ function renderMarkersAndCarousel(items) {
       position,
       map: naverMap,
       icon: {
-        content: `<div class="map-price-marker platform-${esc(item.platform)}" data-link="${esc(item.link)}">${isFavorited(item) ? '★ ' : ''}▲ ${won(item.price)}</div>`,
+        content: `<div class="map-price-marker platform-${esc(item.platform)}" data-link="${esc(item.link)}">${isFavorited(item) ? '<span class="marker-star">★</span>' : ''}${won(item.price)}</div>`,
         anchor: new naver.maps.Point(30, 34),
       },
     });

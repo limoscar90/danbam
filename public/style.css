@@ -98,13 +98,14 @@ span.flatpickr-weekday,
 .search-area-btn:hover { background: #1a251f; }
 
 .map-price-marker {
+  position: relative;
   transform: translate(-50%, -100%);
   background: var(--card);
   border: 2px solid var(--accent);
   color: var(--accent);
   font-weight: 700;
   font-size: 0.8rem;
-  padding: 5px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
   white-space: nowrap;
   cursor: pointer;
@@ -119,6 +120,22 @@ span.flatpickr-weekday,
   transform: translateX(-50%);
   border: 6px solid transparent;
   border-top-color: var(--accent);
+}
+
+/* 별표는 말풍선 안에 글자로 넣으면 가격 옆에 붙어 마커가 넓어지니, 바깥 모서리에 작은 배지로 뺀다. */
+.marker-star {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 15px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .map-price-marker.platform-네이버 { border-color: #03a30b; color: #03a30b; }
