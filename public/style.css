@@ -379,7 +379,7 @@ header h1 {
 
 .auth-switch a:hover { text-decoration: underline; }
 
-#searchForm {
+#searchForm, #dateBar {
   display: flex;
   flex-direction: column;
   gap: 16px;

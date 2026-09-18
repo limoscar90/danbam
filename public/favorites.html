@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>DANBAM 즐겨찾기</title>
 <link rel="icon" href="logo.png" />
+<link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -19,9 +20,18 @@
     <p class="sub">내가 즐겨찾기한 캠핑장</p>
   </header>
 
+  <div id="dateBar">
+    <div class="field">
+      <label for="dateRange">체크인 - 체크아웃</label>
+      <input id="dateRange" placeholder="날짜를 고르면 빈자리를 확인해요" readonly />
+    </div>
+  </div>
+
   <div id="status"></div>
   <div id="results"></div>
 
+  <script src="vendor/flatpickr/flatpickr.min.js"></script>
+  <script src="vendor/flatpickr/l10n/ko.js"></script>
   <script src="favorites.js"></script>
 </body>
 </html>

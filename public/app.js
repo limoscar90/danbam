@@ -226,18 +226,31 @@ function platformTagsHtml(item) {
   return platforms.map((p) => `<span class="platform-tag ${esc(p)}">${esc(p)}</span>`).join('');
 }
 
+// 땡큐캠핑 링크는 날짜를 골랐으면 res_dt/res_edt가 붙어서 검색할 때마다 문자열이 달라진다 -
+// 즐겨찾기 여부/저장은 이 날짜 파라미터를 빼고 비교해야 날짜를 바꿔 검색해도 별표가 안 꺼진다.
+function stripDateParams(link) {
+  try {
+    const u = new URL(link);
+    u.searchParams.delete('res_dt');
+    u.searchParams.delete('res_edt');
+    return u.toString();
+  } catch (e) {
+    return link;
+  }
+}
+
 async function loadFavorites() {
   const res = await fetch('/api/favorites');
   if (res.status === 401) return;
   const data = await res.json();
-  favoriteLinks = new Set((data.items || []).flatMap((f) => (f.links || []).map((l) => l.link)));
+  favoriteLinks = new Set((data.items || []).flatMap((f) => (f.links || []).map((l) => stripDateParams(l.link))));
 }
 
 // 합쳐진 카드는 링크가 여러 개라, 그중 하나라도 즐겨찾기에 있으면 즐겨찾기된 것으로 본다 -
 // 검색마다 어떤 플랫폼들이 잡히는지 달라질 수 있어서(예: 이번엔 네이버가 안 잡힐 수도 있음) 이래야
 // 다음 검색에서도 별표가 꺼지지 않는다.
 function isFavorited(item) {
-  return (item.links || []).some((l) => favoriteLinks.has(l.link));
+  return (item.links || []).some((l) => favoriteLinks.has(stripDateParams(l.link)));
 }
 
 // 즐겨찾기한 항목을 맨 위로, 그 안에서는 기존 정렬(가격순)을 그대로 유지한다.
@@ -257,24 +270,28 @@ async function toggleFavorite(link) {
   const item = itemsByLink.get(link);
   if (!item) return;
   const active = isFavorited(item);
+  // 저장/삭제는 항상 날짜 파라미터를 뺀 링크로 한다 - 그래야 어떤 날짜로 검색해서 즐겨찾기했든
+  // 나중에 다른 날짜로 검색해도 같은 캠핑장으로 인식된다.
+  const cleanLinks = (item.links || []).map((l) => ({ ...l, link: stripDateParams(l.link) }));
+  const cleanPrimaryLink = stripDateParams(item.link);
   try {
     if (active) {
       await fetch('/api/favorites', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ link: item.link }),
+        body: JSON.stringify({ link: cleanPrimaryLink }),
       });
-      item.links.forEach((l) => favoriteLinks.delete(l.link));
+      cleanLinks.forEach((l) => favoriteLinks.delete(l.link));
     } else {
       await fetch('/api/favorites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          link: item.link, name: item.name, addr: item.addr, price: item.price,
-          thumbnail: item.thumbnail, links: item.links,
+          link: cleanPrimaryLink, name: item.name, addr: item.addr, price: item.price,
+          thumbnail: item.thumbnail, links: cleanLinks,
         }),
       });
-      item.links.forEach((l) => favoriteLinks.add(l.link));
+      cleanLinks.forEach((l) => favoriteLinks.add(l.link));
     }
   } catch (err) {
     statusEl.className = 'error';

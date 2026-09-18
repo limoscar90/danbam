@@ -413,6 +413,19 @@ function regionKey(addr) {
   return `${canonicalSido(tokens[0] || '')}|${tokens[1] || ''}`;
 }
 
+// 땡큐캠핑 링크는 날짜를 고르면 res_dt/res_edt가 붙어서 검색할 때마다 문자열이 달라진다 -
+// 즐겨찾기 저장/조회는 이 파라미터를 뺀 링크로 비교해야 날짜가 바뀌어도 같은 캠핑장으로 인식된다.
+function stripDateParams(link) {
+  try {
+    const u = new URL(link);
+    u.searchParams.delete('res_dt');
+    u.searchParams.delete('res_edt');
+    return u.toString();
+  } catch (e) {
+    return link;
+  }
+}
+
 // 캠핏은 이름 앞에 지역명을 붙이는 경우가 많아("태안 꿈꾸는바다캠핑장" vs 네이버의 "꿈꾸는바다
 // 캠핑장") normalizeCampName만으로는 못 묶이는 경우가 실제로 꽤 있었다(춘천/태안 지역 실측 확인).
 // 이런 "한쪽 이름이 다른 쪽을 포함하는" 경우는 상세주소(시/도, 시/군/구를 뺀 도로명+번지)까지
@@ -745,6 +758,70 @@ app.delete('/api/favorites', requireApiAuth, async (req, res) => {
   }
   await getPool().query('DELETE FROM favorites WHERE user_id = $1 AND primary_link = $2', [userId, link]);
   res.json({ ok: true });
+});
+
+// 즐겨찾기 목록에서 날짜를 고르면 저장 당시 스냅샷이 아니라 그 날짜 기준 실시간 잔여석/가격을
+// 보여준다. 즐겨찾기엔 우리 쪽 고정 캠핑장 ID가 없어서, 저장해둔 주소(시/도, 시/군/구)와 이름으로
+// 그 플랫폼만 다시 검색해 저장된 링크와 정확히 일치하는 항목을 찾는 방식으로 조회한다.
+// 캠핏/네이버는 Playwright 페이지 하나를 공유하기 때문에(searchCamfit/searchNaver 내부) 즐겨찾기
+// 여러 개를 동시에(Promise.all) 조회하면 같은 페이지를 두고 서로 충돌할 수 있어 순서대로 처리한다.
+app.post('/api/favorites/availability', requireApiAuth, async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const { checkin, checkout } = req.body || {};
+  if (!checkin || !checkout) {
+    return res.status(400).json({ error: 'checkin/checkout가 필요합니다.' });
+  }
+
+  const { rows } = await getPool().query(
+    'SELECT primary_link, name, addr, links_json FROM favorites WHERE user_id = $1',
+    [userId]
+  );
+
+  const results = [];
+  for (const fav of rows) {
+    const tokens = (fav.addr || '').trim().split(/\s+/).filter(Boolean);
+    const sido = tokens[0] || '';
+    const sigungu = tokens[1] || '';
+    const links = fav.links_json || [];
+    const platforms = new Set(links.map((l) => l.platform).filter(Boolean));
+    const linkByCleanLink = new Map(links.map((l) => [stripDateParams(l.link), l.link]));
+
+    let items = [];
+    try {
+      if (platforms.has('땡큐캠핑')) {
+        items.push(...await searchThankQ({ sido, sigungu, checkin, checkout, adults: 2, siteType: '' }));
+      }
+    } catch (e) { /* 한 플랫폼 실패가 나머지 즐겨찾기 조회를 막지 않게 조용히 넘어간다 */ }
+    try {
+      if (platforms.has('캠핏')) {
+        items.push(...await searchCamfit({ sido, sigungu, adults: 2, hasNameOrFilter: true, filterKeys: [] }));
+      }
+    } catch (e) { /* 위와 동일 */ }
+    try {
+      if (platforms.has('네이버')) {
+        items.push(...await searchNaver({ sido, sigungu, keyword: fav.name, checkin, checkout }));
+      }
+    } catch (e) { /* 위와 동일 */ }
+
+    // 응답의 link는 방금 검색한(날짜가 붙을 수 있는) 링크가 아니라 저장해둔 원래 링크로 돌려준다 -
+    // 즐겨찾기 페이지가 저장된 링크를 키로 이 결과를 찾아 매칭하기 때문이다.
+    const byPlatform = [];
+    items.forEach((i) => {
+      const storedLink = linkByCleanLink.get(stripDateParams(i.link));
+      if (!storedLink) return;
+      byPlatform.push({
+        platform: i.platform,
+        link: storedLink,
+        price: i.price,
+        totalSites: i.totalSites,
+        availableSites: i.availableSites,
+      });
+    });
+    results.push({ link: fav.primary_link, byPlatform });
+  }
+
+  res.json({ items: results });
 });
 
 app.get('/api/search', requireApiAuth, async (req, res) => {
