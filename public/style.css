@@ -616,6 +616,16 @@ header h1 {
 .platform-link-btn.platform-땡큐캠핑 { background: var(--accent-2); }
 .platform-link-btn.platform-네이버 { background: #03a30b; }
 
+/* 실제 예약이 안 되고 정보만 있는 링크(주로 네이버 정보성 페이지)는 색을 빼서 예약 가능한
+   링크와 한눈에 구분되게 한다 */
+.platform-link-btn.info-only {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.card a.link.info-only { color: var(--muted); }
+
 .card h3 {
   margin: 0;
   font-size: 1.02rem;

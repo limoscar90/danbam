@@ -83,15 +83,17 @@ function livePrice(l) {
 }
 
 function platformLinksHtml(fav) {
-  const links = fav.links && fav.links.length ? fav.links : [{ platform: null, link: fav.link, price: fav.price }];
+  const links = fav.links && fav.links.length ? fav.links : [{ platform: null, link: fav.link, price: fav.price, bookable: true }];
   if (links.length === 1) {
-    return `<a class="link" href="${esc(links[0].link)}" target="_blank" rel="noopener">사이트에서 보기 →${esc(availLabel(links[0].link))}</a>`;
+    const infoOnly = links[0].bookable === false;
+    return `<a class="link${infoOnly ? ' info-only' : ''}" href="${esc(links[0].link)}" target="_blank" rel="noopener">사이트에서 보기 →${infoOnly ? ' (정보만, 예약 불가)' : ''}${esc(availLabel(links[0].link))}</a>`;
   }
   return `
     <div class="platform-links">
       ${links.map((l) => {
         const price = livePrice(l);
-        return `<a class="platform-link-btn platform-${esc(l.platform)}" href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.platform)}${price != null ? ` ${price.toLocaleString('ko-KR')}원~` : ''}${esc(availLabel(l.link))}</a>`;
+        const infoOnly = l.bookable === false;
+        return `<a class="platform-link-btn platform-${esc(l.platform)}${infoOnly ? ' info-only' : ''}" href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.platform)}${price != null ? ` ${price.toLocaleString('ko-KR')}원~` : ''}${infoOnly ? ' (정보만)' : ''}${esc(availLabel(l.link))}</a>`;
       }).join('')}
     </div>
   `;

@@ -129,6 +129,7 @@ async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType
 
   return list.map((c) => ({
     platform: '땡큐캠핑',
+    bookable: true, // 땡큐캠핑은 항상 실제 예약/결제가 되는 링크다
     name: c.campName,
     addr: c.addr,
     price: c.minSalePrice ?? c.minBasicPrice ?? null,
@@ -300,6 +301,7 @@ async function searchCamfitAttempt({ sido, sigungu, adults, hasNameOrFilter, fil
     if (noKidsIds.has(c._id)) amenities.add('노키즈');
     return {
       platform: '캠핏',
+      bookable: true, // 캠핏도 항상 실제 예약/결제가 되는 링크다
       name: c.name,
       addr: (detail && detail.address) || `${c.city} ${c.major}`,
       price: c.priceStartFrom ?? null,
@@ -487,7 +489,7 @@ function dedupeByCamp(items) {
   return [...groups.values()].map((group) => {
     if (group.length === 1) {
       const item = group[0];
-      return { ...item, links: [{ platform: item.platform, link: item.link, price: item.price }] };
+      return { ...item, links: [{ platform: item.platform, link: item.link, price: item.price, bookable: item.bookable }] };
     }
     const primary = [...group].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))[0];
     const withCoords = group.find((i) => i.lat != null && i.lng != null);
@@ -496,7 +498,11 @@ function dedupeByCamp(items) {
       amenities: [...new Set(group.flatMap((i) => i.amenities || []))],
       lat: withCoords ? withCoords.lat : primary.lat,
       lng: withCoords ? withCoords.lng : primary.lng,
-      links: group.map((i) => ({ platform: i.platform, link: i.link, price: i.price })),
+      // 실제 예약 가능한 링크(캠핏/땡큐캠핑은 항상, 네이버는 정식 네이버예약일 때만)를 앞에 오게
+      // 정렬한다 - 정보성 페이지뿐인 플랫폼 때문에 예약처를 못 찾아 헤매지 않게.
+      links: group
+        .map((i) => ({ platform: i.platform, link: i.link, price: i.price, bookable: i.bookable }))
+        .sort((a, b) => Number(Boolean(b.bookable)) - Number(Boolean(a.bookable))),
     };
   });
 }
@@ -602,7 +608,10 @@ async function searchNaverAttempt({ sido, sigungu, keyword, checkin, checkout })
     }));
   }
 
-  return results.map(({ hasNaverBooking, naverBookingUrl, ...item }) => item);
+  // 네이버는 hasNaverBooking(정식 네이버 예약)이 아니면 카드가 그냥 정보성 페이지라 실제 결제가
+  // 안 된다(실측: "반하면오토캠핑장" - 네이버엔 있지만 예약은 캠핏에서만 됨). 합쳐진 카드에서
+  // 진짜 예약 가능한 링크를 구분해 보여줄 수 있게 bookable로 남겨서 내려보낸다.
+  return results.map(({ hasNaverBooking, naverBookingUrl, ...item }) => ({ ...item, bookable: hasNaverBooking }));
 }
 
 const app = express();

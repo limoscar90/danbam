@@ -376,15 +376,26 @@ function renderResultsFromCache() {
   if (mapMode) renderMarkersAndCarousel(sortFavoritesFirst(allMapItems));
 }
 
+// 캠핏/땡큐캠핑은 항상 실제 예약이 되지만, 네이버는 정식 네이버예약이 아니면 정보성 페이지라
+// 결제가 안 된다(실측: "반하면오토캠핑장" - 네이버엔 있지만 예약은 캠핏에서만 됨). 그런 링크는
+// "(정보만)"이라고 표시해서 헷갈리지 않게 한다. bookable이 없는(옛 캐시 등) 경우는 예약 가능으로
+// 취급해 과하게 표시하지 않는다.
+function linkLabel(l) {
+  const price = l.price != null ? ` ${l.price.toLocaleString('ko-KR')}원~` : '';
+  const infoOnly = l.bookable === false ? ' (정보만)' : '';
+  return `${esc(l.platform)}${price}${infoOnly}`;
+}
+
 function platformLinksHtml(item) {
-  const links = item.links && item.links.length ? item.links : [{ platform: item.platform, link: item.link, price: item.price }];
+  const links = item.links && item.links.length ? item.links : [{ platform: item.platform, link: item.link, price: item.price, bookable: item.bookable }];
   if (links.length === 1) {
-    return `<a class="link" href="${esc(links[0].link)}" target="_blank" rel="noopener">사이트에서 보기 →</a>`;
+    const infoOnly = links[0].bookable === false;
+    return `<a class="link${infoOnly ? ' info-only' : ''}" href="${esc(links[0].link)}" target="_blank" rel="noopener">사이트에서 보기 →${infoOnly ? ' (정보만, 예약 불가)' : ''}</a>`;
   }
   return `
     <div class="platform-links">
       ${links.map((l) => (
-        `<a class="platform-link-btn platform-${esc(l.platform)}" href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.platform)}${l.price != null ? ` ${l.price.toLocaleString('ko-KR')}원~` : ''}</a>`
+        `<a class="platform-link-btn platform-${esc(l.platform)}${l.bookable === false ? ' info-only' : ''}" href="${esc(l.link)}" target="_blank" rel="noopener">${linkLabel(l)}</a>`
       )).join('')}
     </div>
   `;
