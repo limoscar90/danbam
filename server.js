@@ -730,6 +730,24 @@ app.get('/api/meta', requireApiAuth, (req, res) => {
   });
 });
 
+// 로그인할 때마다 필터를 다시 고르지 않아도 되게 마지막으로 쓴 조합을 계정에 저장/복원한다
+// (반려동물 동반처럼 매번 켜야 하는 필터가 있다는 요청). 지역/날짜/숙소명 같은 그때그때 다른
+// 검색어는 대상이 아니고, 숙소유형·예약옵션 등 "선호"에 가까운 칩 상태만 저장한다.
+app.get('/api/search-prefs', requireApiAuth, async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const { rows } = await getPool().query('SELECT search_prefs FROM users WHERE id = $1', [userId]);
+  res.json({ prefs: (rows[0] && rows[0].search_prefs) || null });
+});
+
+app.put('/api/search-prefs', requireApiAuth, async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const prefs = (req.body && req.body.prefs) || {};
+  await getPool().query('UPDATE users SET search_prefs = $1 WHERE id = $2', [JSON.stringify(prefs), userId]);
+  res.json({ ok: true });
+});
+
 // 검색은 로그인이 꺼진 로컬 개발(ENABLE_AUTH=false)에서도 되지만, 즐겨찾기는 사용자별 데이터라
 // 실제 로그인한 사용자가 있을 때만 의미가 있다 - requireApiAuth의 AUTH_ENABLED 우회와 무관하게
 // 항상 세션의 userId를 확인한다.

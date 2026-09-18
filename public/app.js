@@ -72,6 +72,52 @@ function esc(s) {
   ));
 }
 
+// 로그인할 때마다 숙소유형/예약옵션/시설 같은 필터 칩을 매번 다시 고르지 않아도 되게, 마지막으로
+// 쓴 조합을 계정에 저장해뒀다가 다음 로그인에 그대로 불러온다(지역/날짜/숙소명은 매번 달라지는
+// 값이라 대상에서 뺐다).
+function currentPrefs() {
+  return {
+    siteType: selectedSiteType,
+    filters: [...selectedFilters],
+    platforms: [...selectedPlatforms],
+    onlyAvailable,
+  };
+}
+
+function saveSearchPrefs() {
+  fetch('/api/search-prefs', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prefs: currentPrefs() }),
+  }).catch(() => {});
+}
+
+async function loadSearchPrefs() {
+  try {
+    const res = await fetch('/api/search-prefs');
+    if (!res.ok) return;
+    const data = await res.json();
+    const prefs = data.prefs;
+    if (!prefs) return;
+    selectedSiteType = prefs.siteType || '';
+    siteTypeInput.value = selectedSiteType;
+    selectedFilters.clear();
+    (prefs.filters || []).forEach((k) => selectedFilters.add(k));
+    filtersInput.value = [...selectedFilters].join(',');
+    selectedPlatforms.clear();
+    (prefs.platforms || []).forEach((p) => selectedPlatforms.add(p));
+    platformsInput.value = [...selectedPlatforms].join(',');
+    onlyAvailable = Boolean(prefs.onlyAvailable);
+    onlyAvailableInput.value = onlyAvailable ? 'true' : '';
+  } catch (e) { /* 저장된 선호가 없거나 못 불러와도 기본값으로 계속 진행 */ }
+}
+
+function syncPlatformChipUI() {
+  document.querySelectorAll('#platformChips .chip').forEach((b) => {
+    b.classList.toggle('active', b.dataset.platform ? selectedPlatforms.has(b.dataset.platform) : selectedPlatforms.size === 0);
+  });
+}
+
 async function loadMeta() {
   const res = await fetch('/api/meta');
   if (res.status === 401) return (window.location.href = '/login');
@@ -125,6 +171,7 @@ function renderSiteTypeChips(siteTypes) {
       selectedSiteType = btn.dataset.value;
       siteTypeInput.value = selectedSiteType;
       container.querySelectorAll('.chip').forEach((b) => b.classList.toggle('active', b === btn));
+      saveSearchPrefs();
     });
   });
 }
@@ -145,9 +192,9 @@ function renderFilterGroups(tags) {
     <div class="filter-section">
       <div class="filter-section-title">${esc(groupName)}</div>
       <div class="chip-row">
-        ${groupName === '예약 옵션' ? '<button type="button" id="onlyAvailableChip" class="chip">예약 가능</button>' : ''}
+        ${groupName === '예약 옵션' ? `<button type="button" id="onlyAvailableChip" class="chip${onlyAvailable ? ' active' : ''}">예약 가능</button>` : ''}
         ${byName.get(groupName).map((t) => (
-          `<button type="button" class="chip" data-key="${esc(t.key)}">${esc(t.label)}</button>`
+          `<button type="button" class="chip${selectedFilters.has(t.key) ? ' active' : ''}" data-key="${esc(t.key)}">${esc(t.label)}</button>`
         )).join('')}
       </div>
     </div>
@@ -160,6 +207,7 @@ function renderFilterGroups(tags) {
       else selectedFilters.add(key);
       btn.classList.toggle('active');
       filtersInput.value = [...selectedFilters].join(',');
+      saveSearchPrefs();
     });
   });
 
@@ -169,6 +217,7 @@ function renderFilterGroups(tags) {
       onlyAvailable = !onlyAvailable;
       availChip.classList.toggle('active', onlyAvailable);
       onlyAvailableInput.value = onlyAvailable ? 'true' : '';
+      saveSearchPrefs();
     });
   }
 }
@@ -185,9 +234,8 @@ document.querySelectorAll('#platformChips .chip').forEach((btn) => {
       else selectedPlatforms.add(platform);
     }
     platformsInput.value = [...selectedPlatforms].join(',');
-    document.querySelectorAll('#platformChips .chip').forEach((b) => {
-      b.classList.toggle('active', b.dataset.platform ? selectedPlatforms.has(b.dataset.platform) : selectedPlatforms.size === 0);
-    });
+    syncPlatformChipUI();
+    saveSearchPrefs();
   });
 });
 
@@ -205,8 +253,9 @@ function resetFilters() {
   onlyAvailableInput.value = '';
   platformsInput.value = '';
   document.querySelectorAll('#siteTypeChips .chip').forEach((b, i) => b.classList.toggle('active', i === 0 && b.dataset.value === ''));
-  document.querySelectorAll('#platformChips .chip').forEach((b) => b.classList.toggle('active', !b.dataset.platform));
+  syncPlatformChipUI();
   document.querySelectorAll('#filterGroups .chip').forEach((b) => b.classList.remove('active'));
+  saveSearchPrefs();
 }
 
 document.getElementById('resetBtn').addEventListener('click', () => {
@@ -558,6 +607,12 @@ form.addEventListener('submit', async (e) => {
 });
 
 loadMe();
-loadMeta();
-// 즐겨찾기 상태를 먼저 받아와야 첫 검색 결과의 별표/정렬이 처음부터 맞게 나온다.
-loadFavorites().finally(() => form.dispatchEvent(new Event('submit')));
+// 저장된 필터 선호를 먼저 받아와야 loadMeta()가 칩을 렌더링할 때부터 반영된 상태로 그려진다.
+// 즐겨찾기 상태도 첫 검색 결과의 별표/정렬이 처음부터 맞게 나오려면 검색 전에 받아와야 한다.
+(async () => {
+  await loadSearchPrefs();
+  await loadMeta();
+  syncPlatformChipUI();
+  await loadFavorites();
+  form.dispatchEvent(new Event('submit'));
+})();
