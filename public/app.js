@@ -104,7 +104,11 @@ async function loadMe() {
   const data = await res.json();
   const badge = document.getElementById('userBadge');
   if (!data.email) return; // 로그인 기능이 꺼져있는 상태(ENABLE_AUTH=false) - 배지를 표시하지 않는다.
-  badge.innerHTML = `<span>${esc(data.email)}</span><button type="button" id="logoutBtn">로그아웃</button>`;
+  // 게스트는 서버가 만든 임의 이메일(guest-uuid@danbam.guest)을 그대로 보여주면 의미가 없어 대신
+  // 회원가입을 안내한다.
+  badge.innerHTML = data.isGuest
+    ? '<span>게스트로 체험 중</span><a href="/signup" class="guest-signup-link">회원가입</a><button type="button" id="logoutBtn">로그아웃</button>'
+    : `<span>${esc(data.email)}</span><button type="button" id="logoutBtn">로그아웃</button>`;
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST' });
     window.location.href = '/login';

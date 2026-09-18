@@ -24,6 +24,7 @@
       <button type="submit" class="btn-primary auth-submit">로그인</button>
     </form>
     <p class="auth-switch">계정이 없으신가요? <a href="/signup">회원가입</a></p>
+    <button type="button" id="guestBtn" class="btn-secondary auth-submit">회원가입 없이 체험하기</button>
   </div>
 
   <script>
@@ -41,6 +42,18 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || '로그인에 실패했습니다.');
+        window.location.href = '/';
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    document.getElementById('guestBtn').addEventListener('click', async () => {
+      errorEl.textContent = '';
+      try {
+        const res = await fetch('/api/guest', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '체험 계정을 만들지 못했습니다.');
         window.location.href = '/';
       } catch (err) {
         errorEl.textContent = err.message;

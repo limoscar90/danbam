@@ -55,7 +55,9 @@ async function loadMe() {
   const data = await res.json();
   const badge = document.getElementById('userBadge');
   if (!data.email) return;
-  badge.innerHTML = `<span>${esc(data.email)}</span><button type="button" id="logoutBtn">로그아웃</button>`;
+  badge.innerHTML = data.isGuest
+    ? '<span>게스트로 체험 중</span><a href="/signup" class="guest-signup-link">회원가입</a><button type="button" id="logoutBtn">로그아웃</button>'
+    : `<span>${esc(data.email)}</span><button type="button" id="logoutBtn">로그아웃</button>`;
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await fetch('/api/logout', { method: 'POST' });
     window.location.href = '/login';

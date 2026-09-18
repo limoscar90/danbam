@@ -308,6 +308,19 @@ header h1 {
 
 .user-badge button:hover { background: #eef1ec; }
 
+.guest-signup-link {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.guest-signup-link:hover { background: #eef1ec; }
+
 .auth-body {
   display: flex;
   align-items: center;

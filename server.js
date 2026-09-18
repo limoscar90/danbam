@@ -1,4 +1,5 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
 const session = require('express-session');
@@ -679,6 +680,23 @@ app.post('/api/signup', async (req, res) => {
   }
 });
 
+// 회원가입 없이 바로 둘러보고 싶다는 요청 - 진짜 계정을 하나 만들어서 로그인 처리한다(즐겨찾기 등
+// 다른 기능이 user_id FK로 걸려있어서, 진짜 유저 없이 특별 취급하면 여기저기 예외 처리가 필요해진다).
+// 이메일은 로그인에 쓸 일이 없는 임의 문자열이라 비밀번호도 아무도 모르는 무작위 값으로 채운다.
+app.post('/api/guest', async (req, res) => {
+  try {
+    const email = `guest-${crypto.randomUUID()}@danbam.guest`;
+    const passwordHash = await bcrypt.hash(crypto.randomUUID(), 10);
+    const user = await userStore.createUser(email, passwordHash);
+    req.session.userId = user.id;
+    req.session.email = user.email;
+    req.session.isGuest = true;
+    res.json({ email: user.email, isGuest: true });
+  } catch (err) {
+    res.status(500).json({ error: '체험 계정을 만들지 못했습니다.' });
+  }
+});
+
 app.post('/api/login', async (req, res) => {
   const email = userStore.normalizeEmail(req.body.email);
   const password = String(req.body.password || '');
@@ -696,7 +714,9 @@ app.post('/api/logout', (req, res) => {
 });
 
 app.get('/api/me', (req, res) => {
-  if (req.session && req.session.userId) return res.json({ email: req.session.email });
+  if (req.session && req.session.userId) {
+    return res.json({ email: req.session.email, isGuest: !!req.session.isGuest });
+  }
   if (!AUTH_ENABLED) return res.json({ email: null });
   res.status(401).json({ error: '로그인이 필요합니다.' });
 });
