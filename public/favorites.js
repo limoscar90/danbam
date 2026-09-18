@@ -20,6 +20,9 @@ const datePicker = flatpickr('#dateRange', {
   minDate: 'today',
   dateFormat: 'Y-m-d',
   showMonths: window.innerWidth < 480 ? 1 : 2,
+  // static: true로 입력창 바로 아래(부모 요소 기준)에 달력을 넣는다 - 본문을 가운데 정렬한 뒤로
+  // document.body 기준 좌표 계산이 어긋나 달력이 안 보이거나 엉뚱한 위치에 뜨는 문제가 있었다.
+  static: true,
   onChange(selectedDates) {
     if (selectedDates.length !== 2) {
       checkinInput.value = '';
