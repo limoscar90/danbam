@@ -11,6 +11,11 @@
 
 * { box-sizing: border-box; }
 
+/* #results(display:grid)와 .carousel(display:flex)처럼 display를 직접 지정한 요소는
+   특정도가 같거나 더 높아서 hidden 속성의 기본 display:none을 이겨버린다 - 리스트<->지도
+   전환 시 이전 화면이 안 숨겨지고 같이 보이던 버그의 원인. !important로 hidden이 항상 이기게 한다. */
+[hidden] { display: none !important; }
+
 #dateRange { cursor: pointer; background: #fff; }
 
 /* flatpickr 캘린더를 DANBAM 초록 테마에 맞춘다 */
