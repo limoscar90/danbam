@@ -350,18 +350,83 @@ function normalizeCampName(name) {
     .toLowerCase();
 }
 
+// "충남"/"충청남도"처럼 흔한 줄임말과 정식 명칭의 글자 수가 아예 달라(끝의 "도"만 떼서는 못
+// 맞춤) 충청/전라/경상 계열은 그냥 접미사 제거만으론 같은 지역으로 안 묶였다(태안군 실측에서
+// 확인됨) - 시/도별로 정규화 규칙을 따로 둔다.
+const SIDO_CANON = [
+  [/^서울/, '서울'], [/^부산/, '부산'], [/^대구/, '대구'], [/^인천/, '인천'],
+  [/^광주/, '광주'], [/^대전/, '대전'], [/^울산/, '울산'], [/^세종/, '세종'],
+  [/^경기/, '경기'], [/^강원/, '강원'], [/^제주/, '제주'],
+  [/^충청?북/, '충북'], [/^충청?남/, '충남'],
+  [/^전라?북/, '전북'], [/^전라?남/, '전남'],
+  [/^경상?북/, '경북'], [/^경상?남/, '경남'],
+];
+
+function canonicalSido(token) {
+  const hit = SIDO_CANON.find(([re]) => re.test(token));
+  if (hit) return hit[1];
+  return (token || '').replace(/(특별자치도|특별자치시|광역시|특별시|도)$/, '');
+}
+
 function regionKey(addr) {
   if (!addr) return '';
   const tokens = addr.trim().split(/\s+/);
-  const sido = (tokens[0] || '').replace(/(특별자치도|특별자치시|광역시|특별시|도)$/, '');
-  return `${sido}|${tokens[1] || ''}`;
+  return `${canonicalSido(tokens[0] || '')}|${tokens[1] || ''}`;
+}
+
+// 캠핏은 이름 앞에 지역명을 붙이는 경우가 많아("태안 꿈꾸는바다캠핑장" vs 네이버의 "꿈꾸는바다
+// 캠핑장") normalizeCampName만으로는 못 묶이는 경우가 실제로 꽤 있었다(춘천/태안 지역 실측 확인).
+// 이런 "한쪽 이름이 다른 쪽을 포함하는" 경우는 상세주소(시/도, 시/군/구를 뺀 도로명+번지)까지
+// 정확히 같을 때만 같은 캠핑장으로 본다 - 이름만 보고 묶으면 같은 도로에 있는 다른 캠핑장을
+// 잘못 합칠 위험이 있어서다.
+function normalizeAddrDetail(addr) {
+  if (!addr) return '';
+  const tokens = addr.trim().split(/\s+/).filter(Boolean).slice(2);
+  return tokens
+    .join(' ')
+    .replace(/\(.*?\)/g, '')
+    .replace(/\S*구역\s*$/, '')
+    .replace(/\s+/g, '')
+    .trim();
 }
 
 function dedupeByCamp(items) {
+  const meta = items.map((item) => ({
+    nameKey: normalizeCampName(item.name),
+    regionKey: regionKey(item.addr),
+    addrKey: normalizeAddrDetail(item.addr),
+  }));
+
+  const parent = items.map((_, i) => i);
+  function find(x) {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+    return x;
+  }
+  function union(a, b) {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent[ra] = rb;
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    if (!meta[i].nameKey || !meta[i].regionKey) continue;
+    for (let j = i + 1; j < items.length; j++) {
+      if (!meta[j].nameKey || meta[i].regionKey !== meta[j].regionKey) continue;
+      if (meta[i].nameKey === meta[j].nameKey) {
+        union(i, j);
+        continue;
+      }
+      const shorter = Math.min(meta[i].nameKey.length, meta[j].nameKey.length);
+      const oneContainsOther = meta[i].nameKey.includes(meta[j].nameKey) || meta[j].nameKey.includes(meta[i].nameKey);
+      if (shorter >= 3 && oneContainsOther && meta[i].addrKey && meta[i].addrKey === meta[j].addrKey) {
+        union(i, j);
+      }
+    }
+  }
+
   const groups = new Map();
-  items.forEach((item) => {
-    const nameKey = normalizeCampName(item.name);
-    const key = nameKey ? `${nameKey}|${regionKey(item.addr)}` : `__unique_${groups.size}`;
+  items.forEach((item, idx) => {
+    const key = meta[idx].nameKey ? find(idx) : `__unique_${idx}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   });
