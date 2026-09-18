@@ -147,6 +147,7 @@ span.flatpickr-weekday,
 .carousel-empty { color: var(--muted); font-size: 0.9rem; }
 
 .carousel-card {
+  position: relative;
   flex: 0 0 220px;
   scroll-snap-align: start;
   background: var(--card);
@@ -239,6 +240,25 @@ header h1 {
   align-items: center;
   margin-bottom: 4px;
 }
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.favorites-link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.favorites-link:hover { background: #eef1ec; }
 
 .user-badge {
   display: flex;
@@ -459,12 +479,44 @@ header h1 {
 }
 
 .card {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.fav-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  z-index: 1;
+}
+
+.fav-btn:hover { background: #fff; }
+.fav-btn.active { color: var(--accent-2); }
+
+.carousel-card .fav-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 0.85rem;
+  top: 6px;
+  right: 6px;
 }
 
 .card img {

@@ -25,6 +25,9 @@ let mapMarkers = []; // { marker, link }[]
 let allMapItems = []; // 현재 검색 결과 중 좌표가 있는 전체 목록 - "이 지역에서 검색" 필터링용
 let suppressMapEvents = false; // fitBounds/panTo 같은 코드로 인한 이동은 "지도 움직임"으로 안 치게 막는 플래그
 let lastSearchHadDates = false; // 가장 최근 검색에 체크인/체크아웃이 포함됐는지 - 잔여석 표시 여부 판단용
+let favoriteLinks = new Set(); // 즐겨찾기에 저장된 모든 플랫폼 링크(합쳐진 카드는 여러 개) - 별표 상태 판단용
+let lastListItems = []; // 가장 최근 검색 결과(리스트 모드) - 즐겨찾기 토글 후 재검색 없이 다시 그리는 용도
+let itemsByLink = new Map(); // item.link -> item, 즐겨찾기 버튼 클릭 시 전체 데이터를 다시 찾기 위함
 
 function fmtYmd(d) {
   const y = d.getFullYear();
@@ -223,6 +226,82 @@ function platformTagsHtml(item) {
   return platforms.map((p) => `<span class="platform-tag ${esc(p)}">${esc(p)}</span>`).join('');
 }
 
+async function loadFavorites() {
+  const res = await fetch('/api/favorites');
+  if (res.status === 401) return;
+  const data = await res.json();
+  favoriteLinks = new Set((data.items || []).flatMap((f) => (f.links || []).map((l) => l.link)));
+}
+
+// 합쳐진 카드는 링크가 여러 개라, 그중 하나라도 즐겨찾기에 있으면 즐겨찾기된 것으로 본다 -
+// 검색마다 어떤 플랫폼들이 잡히는지 달라질 수 있어서(예: 이번엔 네이버가 안 잡힐 수도 있음) 이래야
+// 다음 검색에서도 별표가 꺼지지 않는다.
+function isFavorited(item) {
+  return (item.links || []).some((l) => favoriteLinks.has(l.link));
+}
+
+// 즐겨찾기한 항목을 맨 위로, 그 안에서는 기존 정렬(가격순)을 그대로 유지한다.
+function sortFavoritesFirst(items) {
+  const fav = [];
+  const rest = [];
+  items.forEach((item) => (isFavorited(item) ? fav : rest).push(item));
+  return [...fav, ...rest];
+}
+
+function favBtnHtml(item) {
+  const active = isFavorited(item);
+  return `<button type="button" class="fav-btn${active ? ' active' : ''}" data-fav-link="${esc(item.link)}" title="${active ? '즐겨찾기 해제' : '즐겨찾기에 추가'}">${active ? '★' : '☆'}</button>`;
+}
+
+async function toggleFavorite(link) {
+  const item = itemsByLink.get(link);
+  if (!item) return;
+  const active = isFavorited(item);
+  try {
+    if (active) {
+      await fetch('/api/favorites', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ link: item.link }),
+      });
+      item.links.forEach((l) => favoriteLinks.delete(l.link));
+    } else {
+      await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link: item.link, name: item.name, addr: item.addr, price: item.price,
+          thumbnail: item.thumbnail, links: item.links,
+        }),
+      });
+      item.links.forEach((l) => favoriteLinks.add(l.link));
+    }
+  } catch (err) {
+    statusEl.className = 'error';
+    statusEl.textContent = '즐겨찾기 저장 실패: ' + err.message;
+    return;
+  }
+  renderResultsFromCache();
+}
+
+resultsEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.fav-btn');
+  if (!btn) return;
+  toggleFavorite(btn.dataset.favLink);
+});
+
+mapCarouselEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.fav-btn');
+  if (!btn) return;
+  toggleFavorite(btn.dataset.favLink);
+});
+
+function renderResultsFromCache() {
+  const sorted = sortFavoritesFirst(lastListItems);
+  resultsEl.innerHTML = sorted.map(cardHtml).join('') || '<p>검색 결과가 없습니다.</p>';
+  if (mapMode) renderMarkersAndCarousel(sortFavoritesFirst(allMapItems));
+}
+
 function platformLinksHtml(item) {
   const links = item.links && item.links.length ? item.links : [{ platform: item.platform, link: item.link, price: item.price }];
   if (links.length === 1) {
@@ -252,6 +331,7 @@ function cardHtml(item) {
     : '';
   return `
     <div class="card" data-link="${esc(item.link)}">
+      ${favBtnHtml(item)}
       ${img}
       <div class="card-body">
         <div class="platform-tags">${platformTagsHtml(item)}</div>
@@ -272,6 +352,7 @@ function carouselCardHtml(item) {
     : '';
   return `
     <div class="carousel-card" data-link="${esc(item.link)}">
+      ${favBtnHtml(item)}
       ${img}
       <div class="carousel-card-body">
         <div class="platform-tags">${platformTagsHtml(item)}</div>
@@ -313,7 +394,8 @@ function renderMarkersAndCarousel(items) {
     || '<p class="carousel-empty">지도에 표시할 캠핑장이 없어요.</p>';
   mapCarouselEl.querySelectorAll('.carousel-card').forEach((card) => {
     card.addEventListener('click', (e) => {
-      if (e.target.closest('a')) return; // "사이트에서 보기" 링크 클릭은 지도 이동을 트리거하지 않는다.
+      // "사이트에서 보기" 링크나 즐겨찾기 버튼 클릭은 지도 이동을 트리거하지 않는다.
+      if (e.target.closest('a') || e.target.closest('.fav-btn')) return;
       const link = card.dataset.link;
       highlightCarouselCard(link);
       const found = mapMarkers.find((m) => m.link === link);
@@ -330,7 +412,7 @@ function renderMarkersAndCarousel(items) {
       position,
       map: naverMap,
       icon: {
-        content: `<div class="map-price-marker platform-${esc(item.platform)}" data-link="${esc(item.link)}">▲ ${won(item.price)}</div>`,
+        content: `<div class="map-price-marker platform-${esc(item.platform)}" data-link="${esc(item.link)}">${isFavorited(item) ? '★ ' : ''}▲ ${won(item.price)}</div>`,
         anchor: new naver.maps.Point(30, 34),
       },
     });
@@ -360,7 +442,7 @@ async function renderMap(items) {
 
   const withCoords = items.filter((i) => i.lat != null && i.lng != null);
   allMapItems = withCoords;
-  renderMarkersAndCarousel(withCoords);
+  renderMarkersAndCarousel(sortFavoritesFirst(withCoords));
 
   const bounds = new naver.maps.LatLngBounds();
   withCoords.forEach((item) => bounds.extend(new naver.maps.LatLng(item.lat, item.lng)));
@@ -432,7 +514,9 @@ form.addEventListener('submit', async (e) => {
     }
     statusEl.textContent = statusText;
 
-    resultsEl.innerHTML = data.items.map(cardHtml).join('') || '<p>검색 결과가 없습니다.</p>';
+    lastListItems = data.items;
+    itemsByLink = new Map(data.items.map((item) => [item.link, item]));
+    resultsEl.innerHTML = sortFavoritesFirst(data.items).map(cardHtml).join('') || '<p>검색 결과가 없습니다.</p>';
 
     if (mapMode) {
       try {
@@ -450,4 +534,5 @@ form.addEventListener('submit', async (e) => {
 
 loadMe();
 loadMeta();
-form.dispatchEvent(new Event('submit'));
+// 즐겨찾기 상태를 먼저 받아와야 첫 검색 결과의 별표/정렬이 처음부터 맞게 나온다.
+loadFavorites().finally(() => form.dispatchEvent(new Event('submit')));

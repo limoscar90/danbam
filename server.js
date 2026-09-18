@@ -5,6 +5,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const { chromium } = require('playwright');
 const userStore = require('./lib/userStore');
+const { getPool } = require('./lib/db');
 
 const AUTH_ENABLED = process.env.ENABLE_AUTH === 'true';
 
@@ -610,7 +611,6 @@ const sessionOptions = {
 };
 if (AUTH_ENABLED) {
   const pgSession = require('connect-pg-simple')(session);
-  const { getPool } = require('./lib/db');
   sessionOptions.store = new pgSession({ pool: getPool(), tableName: 'session', createTableIfMissing: true });
 }
 app.use(session(sessionOptions));
@@ -632,6 +632,10 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 app.get('/', requirePageAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/favorites', requirePageAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'favorites.html'));
 });
 
 app.get('/login', (req, res) => {
@@ -691,6 +695,56 @@ app.get('/api/meta', requireApiAuth, (req, res) => {
     // Client ID는 지도 SDK 로드용으로 브라우저에 그대로 노출돼도 되는 값이다(Secret은 서버에만 둔다).
     naverMapsClientId: process.env.NCP_MAPS_CLIENT_ID || null,
   });
+});
+
+// 검색은 로그인이 꺼진 로컬 개발(ENABLE_AUTH=false)에서도 되지만, 즐겨찾기는 사용자별 데이터라
+// 실제 로그인한 사용자가 있을 때만 의미가 있다 - requireApiAuth의 AUTH_ENABLED 우회와 무관하게
+// 항상 세션의 userId를 확인한다.
+function requireUserId(req, res) {
+  if (req.session && req.session.userId) return req.session.userId;
+  res.status(401).json({ error: '로그인이 필요합니다.' });
+  return null;
+}
+
+app.get('/api/favorites', requireApiAuth, async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const { rows } = await getPool().query(
+    `SELECT primary_link AS link, name, addr, price, thumbnail, links_json AS links, created_at AS "createdAt"
+     FROM favorites WHERE user_id = $1 ORDER BY created_at DESC`,
+    [userId]
+  );
+  res.json({ items: rows });
+});
+
+app.post('/api/favorites', requireApiAuth, async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const { link, name, addr, price, thumbnail, links } = req.body || {};
+  if (!link || typeof link !== 'string') {
+    return res.status(400).json({ error: 'link가 필요합니다.' });
+  }
+  const linksJson = Array.isArray(links) && links.length ? links : [{ platform: null, link, price: price ?? null }];
+  await getPool().query(
+    `INSERT INTO favorites (user_id, primary_link, name, addr, price, thumbnail, links_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (user_id, primary_link)
+     DO UPDATE SET name = EXCLUDED.name, addr = EXCLUDED.addr, price = EXCLUDED.price,
+       thumbnail = EXCLUDED.thumbnail, links_json = EXCLUDED.links_json`,
+    [userId, link, name || null, addr || null, price ?? null, thumbnail || null, JSON.stringify(linksJson)]
+  );
+  res.json({ ok: true });
+});
+
+app.delete('/api/favorites', requireApiAuth, async (req, res) => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+  const { link } = req.body || {};
+  if (!link || typeof link !== 'string') {
+    return res.status(400).json({ error: 'link가 필요합니다.' });
+  }
+  await getPool().query('DELETE FROM favorites WHERE user_id = $1 AND primary_link = $2', [userId, link]);
+  res.json({ ok: true });
 });
 
 app.get('/api/search', requireApiAuth, async (req, res) => {
