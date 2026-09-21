@@ -841,10 +841,16 @@ app.delete('/api/favorites', requireApiAuth, async (req, res) => {
 app.post('/api/favorites/availability', requireApiAuth, async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
-  const { checkin, checkout } = req.body || {};
-  if (!checkin || !checkout) {
+  const { checkin: checkinRaw, checkout: checkoutRaw } = req.body || {};
+  if (!checkinRaw || !checkoutRaw) {
     return res.status(400).json({ error: 'checkin/checkout가 필요합니다.' });
   }
+  // 프런트는 "YYYY-MM-DD"로 보내는데 searchThankQ/searchNaver(특히 fetchNaverBookingMinPrice의
+  // slice(0,4)/(4,6)/(6,8))는 /api/search와 똑같이 "YYYYMMDD" 압축 형식을 기대한다 - 그대로
+  // 넘기면 날짜가 깨져서 네이버 예약 가격 조회가 조용히 실패하고(가격 정보 없음으로 보임),
+  // 잔여석도 엉뚱한 지역까지 섞여 들어올 수 있었다.
+  const checkin = fmtDate(new Date(checkinRaw));
+  const checkout = fmtDate(new Date(checkoutRaw));
 
   const { rows } = await getPool().query(
     'SELECT primary_link, name, addr, links_json FROM favorites WHERE user_id = $1',
@@ -854,7 +860,10 @@ app.post('/api/favorites/availability', requireApiAuth, async (req, res) => {
   const results = [];
   for (const fav of rows) {
     const tokens = (fav.addr || '').trim().split(/\s+/).filter(Boolean);
-    const sido = tokens[0] || '';
+    // 저장된 주소의 시/도 표기가 "경기도"처럼 정식 명칭이면 땡큐캠핑 region 파라미터가 못 알아듣고
+    // 지역 필터를 그냥 무시해버린다(실측 확인) - canonicalSido로 캠핏/네이버가 이미 쓰는 축약형으로
+    // 맞춰준다.
+    const sido = canonicalSido(tokens[0] || '');
     const sigungu = tokens[1] || '';
     const links = fav.links_json || [];
     const platforms = new Set(links.map((l) => l.platform).filter(Boolean));
