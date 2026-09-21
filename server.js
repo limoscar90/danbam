@@ -97,13 +97,16 @@ function fmtDate(d) {
 }
 
 // --- 땡큐캠핑: 일반 HTTP 요청으로 충분 (봇 차단 없음) ---
-async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType }) {
+async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType, keyword }) {
+  // ser_keyword가 실제로 서버에서 이름 검색을 해준다(문서화 안 된 값이지만 실측 확인) - 이게 빈
+  // 값이면 지역 없이 검색할 땐 기본 정렬 1페이지(20건)만 보고 판단해서, 그 안에 없는 캠핑장은
+  // 지역을 몰라서 못 찾았다(캠핏의 search= 파라미터를 못 쓰던 문제와 같은 종류).
   const body = new URLSearchParams({
     region: sido || '',
     sub_region: sigungu || '',
     site_tp: siteType || '',
     ser_disc_yn: '', ser_empty_yn: '', ser_pg_tp: '', ser_long_yn: '',
-    ser_keyword: '', ser_sort: 'R', ser_camp_spec: '', ser_camp_position: '',
+    ser_keyword: keyword || '', ser_sort: 'R', ser_camp_spec: '', ser_camp_position: '',
     ser_key_sub_cd2: '', ser_q_point: '', ser_deposit_yn: '', ser_new_yn: '',
     ser_kid: '', ser_key_cd: '', ser_key_sub_cd: '', ser_festa_gbn: '',
     ser_2peopleOnly: '',
@@ -843,7 +846,7 @@ app.post('/api/favorites/availability', requireApiAuth, async (req, res) => {
     let items = [];
     try {
       if (platforms.has('땡큐캠핑')) {
-        items.push(...await searchThankQ({ sido, sigungu, checkin, checkout, adults: 2, siteType: '' }));
+        items.push(...await searchThankQ({ sido, sigungu, checkin, checkout, adults: 2, siteType: '', keyword: fav.name }));
       }
     } catch (e) { /* 한 플랫폼 실패가 나머지 즐겨찾기 조회를 막지 않게 조용히 넘어간다 */ }
     try {
@@ -897,7 +900,7 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
 
   const [thankqResult, camfitResult, naverResult] = await Promise.allSettled([
     wantsPlatform('땡큐캠핑')
-      ? searchThankQ({ sido, sigungu, checkin, checkout, adults: Number(adults) || 2, siteType })
+      ? searchThankQ({ sido, sigungu, checkin, checkout, adults: Number(adults) || 2, siteType, keyword })
       : Promise.resolve([]),
     wantsPlatform('캠핏')
       ? searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter, filterKeys, keyword })
