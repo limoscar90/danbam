@@ -264,15 +264,18 @@ header h1 {
 
 .topbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   margin-bottom: 4px;
 }
 
 .topbar-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .favorites-link {
@@ -290,11 +293,14 @@ header h1 {
 
 .user-badge {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   font-size: 0.8rem;
   color: var(--muted);
 }
+
+.user-badge span { white-space: nowrap; }
 
 .user-badge button {
   background: none;
@@ -304,6 +310,7 @@ header h1 {
   font-size: 0.8rem;
   color: var(--ink);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .user-badge button:hover { background: #eef1ec; }
