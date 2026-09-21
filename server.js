@@ -185,7 +185,7 @@ async function searchCamfit(args) {
   }
 }
 
-async function searchCamfitAttempt({ sido, sigungu, adults, hasNameOrFilter, filterKeys = [] }) {
+async function searchCamfitAttempt({ sido, sigungu, adults, hasNameOrFilter, filterKeys = [], keyword }) {
   const page = await getCamfitPage();
   const params = {
     adult: String(adults || 2),
@@ -201,6 +201,12 @@ async function searchCamfitAttempt({ sido, sigungu, adults, hasNameOrFilter, fil
     params.majors = sigungu;
     params.cityAndMajors = `${sido}-${sigungu}`;
   }
+  // 문서화 안 된 파라미터지만 실측으로 찾음: search=가 진짜 이름 검색이다(예: "반하면"으로 검색하면
+  // 지역 없이도 "반하면오토캠핑장"이 정확히 나옴) - 이게 없으면 지역 없는 이름 검색은 기본 정렬
+  // 상위 80개 안에 없으면 못 찾았다. 다만 느슨하게 매칭돼서(예: "네버랜드"에 "~랜드"만 걸림) 결과가
+  // 넓게 잡힐 수 있어, 기존처럼 우리 쪽에서 이름 문자열로 한 번 더 정확히 거른다(/api/search의
+  // keyword 필터).
+  if (keyword) params.search = keyword;
   const qs = new URLSearchParams(params);
   const url = `https://api.camfit.co.kr/v3/search?${qs.toString()}`;
 
@@ -842,7 +848,7 @@ app.post('/api/favorites/availability', requireApiAuth, async (req, res) => {
     } catch (e) { /* 한 플랫폼 실패가 나머지 즐겨찾기 조회를 막지 않게 조용히 넘어간다 */ }
     try {
       if (platforms.has('캠핏')) {
-        items.push(...await searchCamfit({ sido, sigungu, adults: 2, hasNameOrFilter: true, filterKeys: [] }));
+        items.push(...await searchCamfit({ sido, sigungu, adults: 2, hasNameOrFilter: true, filterKeys: [], keyword: fav.name }));
       }
     } catch (e) { /* 위와 동일 */ }
     try {
@@ -894,7 +900,7 @@ app.get('/api/search', requireApiAuth, async (req, res) => {
       ? searchThankQ({ sido, sigungu, checkin, checkout, adults: Number(adults) || 2, siteType })
       : Promise.resolve([]),
     wantsPlatform('캠핏')
-      ? searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter, filterKeys })
+      ? searchCamfit({ sido, sigungu, adults: Number(adults) || 2, hasNameOrFilter, filterKeys, keyword })
       : Promise.resolve([]),
     wantsPlatform('네이버')
       ? searchNaver({ sido, sigungu, keyword, checkin, checkout })
