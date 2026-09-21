@@ -97,7 +97,7 @@ function fmtDate(d) {
 }
 
 // --- 땡큐캠핑: 일반 HTTP 요청으로 충분 (봇 차단 없음) ---
-async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType, keyword }) {
+async function fetchThankQPage({ sido, sigungu, checkin, checkout, adults, siteType, keyword, pageNum }) {
   // ser_keyword가 실제로 서버에서 이름 검색을 해준다(문서화 안 된 값이지만 실측 확인) - 이게 빈
   // 값이면 지역 없이 검색할 땐 기본 정렬 1페이지(20건)만 보고 판단해서, 그 안에 없는 캠핑장은
   // 지역을 몰라서 못 찾았다(캠핏의 search= 파라미터를 못 쓰던 문제와 같은 종류).
@@ -113,7 +113,7 @@ async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType
     ser_res_dt: checkin, ser_res_edt: checkout,
     ser_only_able: '', ser_get_coupon_yn: '', ser_st: 'N',
     ser_adult_count: String(adults || 2), ser_child_count: '0',
-    festa_yn: '', view_type: 'PIC', is_empty_button: 'N', page_num: '1',
+    festa_yn: '', view_type: 'PIC', is_empty_button: 'N', page_num: String(pageNum || 1),
   });
 
   const res = await fetch('https://m.thankqcamping.com/resv/ax_list_search.hbb', {
@@ -128,7 +128,24 @@ async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType
   });
   if (!res.ok) throw new Error(`땡큐캠핑 응답 오류: ${res.status}`);
   const json = await res.json();
-  const list = (json && json.data && json.data.campList) || [];
+  return (json && json.data && json.data.campList) || [];
+}
+
+async function searchThankQ({ sido, sigungu, checkin, checkout, adults, siteType, keyword }) {
+  const args = { sido, sigungu, checkin, checkout, adults, siteType, keyword };
+  const page1 = await fetchThankQPage({ ...args, pageNum: 1 });
+  let list = page1;
+
+  // 이름 검색이 아니라 지역만 고른 일반 브라우징일 때만 몇 페이지 더 가져온다 - 인기 지역은
+  // 캠핑장이 수백 개라 1페이지(20건)만 보면 대부분이 안 보인다(가평군 실측: 500건 이상).
+  // 이름 검색은 ser_keyword가 이미 정확히 좁혀주고, 지역 자체를 안 고른 전체 브라우징은
+  // 네이버처럼 "상위 일부만" 안내를 따로 준다(그쪽까지 페이지를 늘리면 검색이 너무 느려진다).
+  if (!keyword && sido && sigungu && page1.length === 20) {
+    const extraPages = await Promise.all(
+      [2, 3, 4].map((pageNum) => fetchThankQPage({ ...args, pageNum }).catch(() => []))
+    );
+    list = [page1, ...extraPages].flat();
+  }
 
   return list.map((c) => ({
     platform: '땡큐캠핑',
